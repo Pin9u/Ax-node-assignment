@@ -32,7 +32,12 @@ from dotenv import load_dotenv
 
 from modules.flowchart_generator import FlowNode, generate_mermaid, parse_nodes
 from modules.narrative_enricher import enrich_narrative
-from modules.rcm_mapper import annotate_mermaid, load_rcm, map_rcm
+from modules.rcm_mapper import (
+    CANONICAL_REQUIRED, RELEVANT_FOR_WALKTHROUGH, annotate_mermaid,
+    classify_controls, detect_rcm_schema_semantic, filter_by_processes,
+    load_rcm, map_rcm, process_distribution, relevant_for_walkthrough,
+    suggest_relevant_processes,
+)
 from modules.risk_detector import detect_risks
 from modules.vision_analyzer import LogicFinding, analyze_image
 from samples.scenarios.manifest import SCENARIOS, by_label
@@ -591,11 +596,61 @@ if run:
         nodes = parse_nodes(mermaid_code)
         progress.progress(55, text=f"② 차트 생성 완료 — {len(nodes)} 노드")
 
-        progress.progress(60, text="③ RCM 스마트 매핑 중…")
+        # ---------- Step 3 — RCM Intelligence ----------
+        # 3a) Layer 2 LLM column matching if Layer 1 left required fields unmapped
+        # 3b) Classify each row into ITAC / ITGC / PLC / IPE / ENTITY / OTHER
+        # 3c) Auto-suggest which `process` values are in scope for this walkthrough
+        # 3d) Map only relevant categories × selected processes onto the nodes
+        rcm_intel: Dict[str, Any] = {}
         mapping_result: dict = {"mappings": [], "gap_summary_ko": "RCM 미제공"}
+
         if rcm_df is not None and not rcm_df.empty and nodes:
+            progress.progress(58, text="③-a RCM 컬럼 의미 분석 중…")
+            # Layer 2 — only run if required canonical fields are still missing
             try:
-                mapping_result = map_rcm(nodes, rcm_df, api_key=api_key, model=model)
+                if rcm_df.attrs.get("_missing_required"):
+                    rcm_df, _schema = detect_rcm_schema_semantic(
+                        rcm_df, api_key=api_key, model=model
+                    )
+            except Exception as exc:
+                st.warning(f"컬럼 의미 매핑 실패 (alias 매핑만 적용): {exc}")
+
+            progress.progress(63, text="③-b 통제 유형 분류 중 (ITAC/PLC/IPE/ITGC)…")
+            try:
+                rcm_df = classify_controls(rcm_df, api_key=api_key, model=model)
+            except Exception as exc:
+                st.warning(f"통제 분류 실패 — 전 카테고리 매핑 진행: {exc}")
+                rcm_df["category"] = "OTHER"
+                rcm_df.attrs["_category_summary"] = {"OTHER": len(rcm_df)}
+
+            progress.progress(68, text="③-c 관련 프로세스 자동 식별 중…")
+            try:
+                proc_suggestion = suggest_relevant_processes(
+                    rcm_df, narrative_for_pipeline,
+                    api_key=api_key, model=model,
+                )
+                rcm_intel["process_suggestion"] = proc_suggestion
+            except Exception as exc:
+                st.warning(f"프로세스 식별 실패 — 전체 프로세스 사용: {exc}")
+                proc_suggestion = {"selected_processes": [], "fallback_to_all": True}
+
+            # Apply filters for the actual mapping step
+            scoped = rcm_df
+            if not proc_suggestion.get("fallback_to_all"):
+                selected = proc_suggestion.get("selected_processes") or []
+                if selected:
+                    scoped = filter_by_processes(scoped, selected)
+            scoped = relevant_for_walkthrough(scoped)
+
+            rcm_intel["column_map"] = rcm_df.attrs.get("_column_map", {})
+            rcm_intel["category_summary"] = rcm_df.attrs.get("_category_summary", {})
+            rcm_intel["unmapped_columns"] = rcm_df.attrs.get("_unmapped", [])
+            rcm_intel["scope_row_count"] = len(scoped)
+            rcm_intel["total_row_count"] = len(rcm_df)
+
+            progress.progress(72, text=f"③-d 노드 매핑 중 ({len(scoped)}건 적용)…")
+            try:
+                mapping_result = map_rcm(nodes, scoped, api_key=api_key, model=model)
             except Exception as exc:
                 st.warning(f"RCM 매핑 실패(분석은 계속 진행): {exc}")
         progress.progress(80, text="③ RCM 매핑 완료")
@@ -622,6 +677,7 @@ if run:
         st.session_state["narrative_preview"] = enriched_narrative
         st.session_state["narrative_original"] = original_narrative
         st.session_state["narrative_was_enriched"] = enriched_narrative.strip() != original_narrative.strip()
+        st.session_state["rcm_intel"] = rcm_intel
 
 
 # ---------------------------------------------------------------------------
@@ -738,9 +794,67 @@ if "mermaid" in st.session_state:
 
     with c2:
         st.markdown("### 🎯 Smart RCM Mapping")
-        df = _mappings_to_table(mapping_result)
-        if not df.empty:
-            st.dataframe(df, use_container_width=True, hide_index=True)
+        # ── RCM 자동 진단 패널 (Real Mode only) ────────────────────
+        rcm_intel = st.session_state.get("rcm_intel") or {}
+        if rcm_intel:
+            cat = rcm_intel.get("category_summary", {})
+            col_map = rcm_intel.get("column_map", {})
+            proc_sug = rcm_intel.get("process_suggestion", {})
+            scope_n = rcm_intel.get("scope_row_count", 0)
+            total_n = rcm_intel.get("total_row_count", 0)
+
+            chips: List[str] = []
+            for tag in ("ITAC", "PLC", "IPE", "ITGC", "ENTITY", "OTHER"):
+                if cat.get(tag):
+                    cls = "rcm-chip-in" if tag in RELEVANT_FOR_WALKTHROUGH else "rcm-chip-out"
+                    chips.append(f'<span class="rcm-chip {cls}">{tag} {cat[tag]}</span>')
+            chips_html = "".join(chips)
+
+            cols_in = sum(1 for k, v in col_map.items() if v)
+            cols_total = len(col_map) or 1
+
+            selected_procs = proc_sug.get("selected_processes") or []
+            proc_chip = (f'<span class="rcm-chip rcm-chip-process">매핑 범위: '
+                          f'{html.escape(", ".join(selected_procs)) or "전체"}</span>')
+
+            st.markdown(
+                f'<div class="rcm-intel-card">'
+                f'  <div class="rcm-intel-row">'
+                f'    <span class="rcm-intel-label">컬럼 매핑</span>'
+                f'    <span class="rcm-intel-val">{cols_in}/{cols_total} 자동 인식</span>'
+                f'  </div>'
+                f'  <div class="rcm-intel-row">'
+                f'    <span class="rcm-intel-label">통제 분류</span>'
+                f'    <span class="rcm-intel-val">{chips_html}</span>'
+                f'  </div>'
+                f'  <div class="rcm-intel-row">'
+                f'    <span class="rcm-intel-label">프로세스 필터</span>'
+                f'    <span class="rcm-intel-val">{proc_chip}'
+                f'      <span class="rcm-intel-meta"> · {scope_n}/{total_n}건 적용</span>'
+                f'    </span>'
+                f'  </div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            with st.expander("🔧 RCM 자동 진단 상세 보기"):
+                if proc_sug.get("rationale_ko"):
+                    st.markdown(f"**프로세스 선택 근거**: {proc_sug['rationale_ko']}")
+                if col_map:
+                    st.markdown("**컬럼 매핑**")
+                    st.dataframe(
+                        pd.DataFrame(
+                            [{"표준 필드": k, "사용자 컬럼": v or "(매핑 없음)"}
+                             for k, v in col_map.items()]
+                        ),
+                        hide_index=True, use_container_width=True,
+                    )
+                if rcm_intel.get("unmapped_columns"):
+                    st.markdown("**매핑되지 않은 사용자 고유 컬럼**: " +
+                                ", ".join(rcm_intel["unmapped_columns"]))
+
+        df_map = _mappings_to_table(mapping_result)
+        if not df_map.empty:
+            st.dataframe(df_map, use_container_width=True, hide_index=True)
             gap = (mapping_result or {}).get("gap_summary_ko")
             if gap:
                 st.markdown(f'<div class="audit-card"><h4>Control Gap Summary</h4>{gap}</div>',

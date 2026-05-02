@@ -362,6 +362,73 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   letter-spacing: 0.10em;
 }
 
+/* RCM intelligence summary panel */
+.rcm-intel-card {
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-left: 4px solid var(--pwc-orange);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 8px 0 12px 0;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.86rem;
+}
+.rcm-intel-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.rcm-intel-label {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pwc-grey-5);
+  min-width: 90px;
+}
+.rcm-intel-val {
+  flex: 1;
+  color: var(--pwc-text);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.rcm-intel-meta {
+  color: var(--pwc-grey-4);
+  font-size: 0.78rem;
+}
+.rcm-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+}
+.rcm-chip-in {
+  background: rgba(220, 107, 47, 0.10);
+  color: var(--pwc-orange-deep);
+  border-color: rgba(220, 107, 47, 0.30);
+}
+.rcm-chip-out {
+  background: var(--pwc-grey-2);
+  color: var(--pwc-grey-5);
+  border-color: var(--pwc-grey-3);
+}
+.rcm-chip-process {
+  background: rgba(5, 150, 105, 0.08);
+  color: var(--sev-low);
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
 /* Hero / empty-state card */
 .hero-card {
   background: linear-gradient(135deg, #FFFFFF 0%, var(--pwc-orange-bg) 100%);
@@ -417,11 +484,19 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 
 /* ============ Expander ============ */
 .streamlit-expanderHeader,
-[data-testid="stExpander"] details summary {
+[data-testid="stExpander"] details summary,
+[data-testid="stExpander"] details summary p,
+[data-testid="stExpander"] details summary span {
   font-weight: 600 !important;
+  font-size: 0.9rem !important;
   background: var(--pwc-grey-2) !important;
   border-radius: 8px !important;
-  padding: 10px 14px !important;
+  padding: 0 !important;
+  color: var(--pwc-text) !important;
+  line-height: 1.45 !important;
+}
+[data-testid="stExpander"] details summary {
+  padding: 9px 14px !important;
 }
 [data-testid="stExpander"] details {
   border: 1px solid var(--pwc-grey-3) !important;
