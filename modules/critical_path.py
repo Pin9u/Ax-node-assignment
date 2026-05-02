@@ -196,45 +196,26 @@ def score_lanes(
 
 # ---- Mermaid annotation: paint the critical path --------------------------
 def annotate_critical_path(mermaid: str, path: PathResult) -> str:
-    """Append a ``classDef criticalPath`` + per-node ``:::criticalPath``
-    overrides + a Mermaid ``linkStyle`` block colouring the path edges.
+    """Append a ``classDef criticalPath`` + per-node ``class`` assignment
+    to highlight the critical path's *nodes* in red.
 
-    Caller still gets the same Mermaid source — just with the critical
-    path visually emphasised. Hover tooltips and other downstream
-    consumers continue to work because we don't rename anything.
+    Why no ``linkStyle`` painting of the edges:
+      Mermaid 10.x ``linkStyle <indices>`` is sensitive to how the parser
+      counts edges (labels, multi-line flows, subgraph crossings). Mis-
+      counting by even one breaks the entire chart with "Syntax error in
+      text". Painting only the nodes is robust across versions and the
+      visual signal (red-filled nodes along the critical chain) is
+      already strong.
     """
-    if not path.nodes or not path.edges:
+    if not mermaid or not path.nodes:
         return mermaid
 
     src = mermaid.rstrip()
-    extra_classdef = (
-        "\n  classDef criticalPath fill:#FFE2E2,stroke:#DC2626,"
-        "stroke-width:3px,color:#7F1D1D;"
-    )
     if "criticalPath" not in src:
-        src += extra_classdef
-
-    # Append `class N1,N2,N3 criticalPath` to override colours on path nodes
+        src += (
+            "\n  classDef criticalPath fill:#FFE2E2,stroke:#DC2626,"
+            "stroke-width:3px,color:#7F1D1D;"
+        )
+    # Append a single class assignment listing every node on the path.
     src += f"\n  class {','.join(path.nodes)} criticalPath;"
-
-    # Find every edge index in the original source so we can linkStyle them.
-    # Mermaid numbers edges in the order they appear. We re-parse to map
-    # (src,dst) → edge_index, then emit linkStyle directives.
-    edge_indices: List[int] = []
-    seen_edges: List[Tuple[str, str]] = []
-    target = set(path.edges)
-    for line in mermaid.splitlines():
-        compact = re.sub(r"\[[^\]]*\]|\([^)]*\)|\{[^}]*\}|/[^/]*/|\\[^\\]*\\",
-                         " ", line)
-        for m in _EDGE_RE.finditer(compact):
-            seen_edges.append((m.group("src"), m.group("dst")))
-    for i, e in enumerate(seen_edges):
-        if e in target:
-            edge_indices.append(i)
-
-    if edge_indices:
-        idx_csv = ",".join(str(i) for i in edge_indices)
-        src += (f"\n  linkStyle {idx_csv} stroke:#DC2626,"
-                f"stroke-width:3px,color:#7F1D1D;")
-
     return src + "\n"

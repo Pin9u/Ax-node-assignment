@@ -976,12 +976,19 @@ if "mermaid" in st.session_state:
             tooltips[nid]["note"] = f"{mark}{(' · ' + existing) if existing else ''}"
 
     # Paint the critical path on the Mermaid source
-    mermaid_to_render = annotate_critical_path(mermaid_render, crit)
-    # User-chosen direction overrides the planner's default `flowchart TB`
-    mermaid_to_render = re.sub(
-        r"^\s*flowchart\s+\w+", f"flowchart {_dir_code}",
-        mermaid_to_render, count=1, flags=re.MULTILINE,
-    )
+    # Annotation must NEVER break chart rendering — fall back to raw on any
+    # exception (e.g., Mermaid version skew, exotic node shape).
+    try:
+        mermaid_to_render = annotate_critical_path(mermaid_render, crit)
+    except Exception:
+        mermaid_to_render = mermaid_render
+    try:
+        mermaid_to_render = re.sub(
+            r"^\s*flowchart\s+\w+", f"flowchart {_dir_code}",
+            mermaid_to_render, count=1, flags=re.MULTILINE,
+        )
+    except Exception:
+        pass
 
     # Heuristic height: scale with node count
     _node_count = max(1, len(nodes_for_tip))
