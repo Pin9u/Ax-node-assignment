@@ -558,6 +558,75 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   border-color: rgba(5, 150, 105, 0.25);
 }
 
+/* Lane risk row (right above the flowchart) */
+.lane-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0 14px 0;
+  font-size: 0.82rem;
+}
+.lane-row-label {
+  font-weight: 700;
+  color: var(--pwc-grey-5);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.7rem;
+  margin-right: 4px;
+}
+.lane-chip {
+  cursor: help;
+}
+.lane-chip-bad {
+  background: rgba(220, 38, 38, 0.10);
+  color: var(--sev-high);
+  border: 1px solid rgba(220, 38, 38, 0.30);
+}
+
+/* Critical path summary bar (just below the flowchart) */
+.critical-path-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 8px 0;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, rgba(220,38,38,0.06) 0%, rgba(220,38,38,0.02) 100%);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-left: 4px solid var(--sev-high);
+  border-radius: 10px;
+  font-size: 0.88rem;
+}
+.cp-label {
+  font-weight: 700;
+  color: var(--sev-high);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.cp-chain {
+  flex: 1;
+  color: var(--pwc-text);
+  font-weight: 600;
+  word-break: keep-all;
+  line-height: 1.5;
+}
+.cp-score {
+  white-space: nowrap;
+  background: var(--sev-high);
+  color: #FFFFFF;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 720px) {
+  .critical-path-bar { padding: 10px 12px; font-size: 0.84rem; }
+}
+
 /* Hero / empty-state card */
 .hero-card {
   background: linear-gradient(135deg, #FFFFFF 0%, var(--pwc-orange-bg) 100%);

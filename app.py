@@ -31,6 +31,10 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from modules.audit_procedures import coverage_kpis, generate_procedures
+from modules.critical_path import (
+    annotate_critical_path, extract_edges, find_critical_path,
+    score_lanes, score_node,
+)
 from modules.flowchart_generator import FlowNode, generate_mermaid, parse_nodes
 from modules.narrative_enricher import enrich_narrative
 from modules.rcm_mapper import (
@@ -798,8 +802,48 @@ if "mermaid" in st.session_state:
 
     # ===== Flowchart (PRIMARY DELIVERABLE — show first) =====
     st.markdown("### 🗺️ Dynamic Swimlane Flowchart")
-    st.caption("💡 노드/화살표에 마우스를 올리면 매핑된 통제·리스크가 떠요.")
+    st.caption("💡 노드/화살표 호버 → 통제·리스크 / 빨간 경로 = AI가 잡은 critical path")
+
     nodes_for_tip = parse_nodes(mermaid_raw) or []
+
+    # Per-node mapping signal (gap / confidence) → drives node scoring
+    map_by_node = {m.get("node_id"): m for m in (mapping_result or {}).get("mappings", [])}
+    node_scores = {
+        n.node_id: score_node(
+            n,
+            is_gap=bool(map_by_node.get(n.node_id, {}).get("is_gap")),
+            confidence=map_by_node.get(n.node_id, {}).get("confidence", ""),
+        )
+        for n in nodes_for_tip
+    }
+
+    # Critical path detection (highest cumulative-risk chain)
+    valid_ids = {n.node_id for n in nodes_for_tip}
+    edges = extract_edges(mermaid_raw, valid_ids)
+    crit = find_critical_path(nodes_for_tip, edges, node_scores)
+
+    # Lane risk scorecard — one chip per swimlane, sorted worst-first
+    lane_scores = score_lanes(nodes_for_tip, node_scores)
+    if lane_scores:
+        chips = []
+        for lb in lane_scores:
+            ri = lb["risk_index"]
+            tone = "rcm-chip-out" if ri < 30 else ("rcm-chip-in" if ri < 60 else "lane-chip-bad")
+            counts = (f"R{lb.get('risk',0)} · M{lb.get('manual',0)} · "
+                      f"C{lb.get('control',0)} · A{lb.get('automated',0)}")
+            chips.append(
+                f'<span class="rcm-chip {tone} lane-chip" '
+                f'title="{html.escape(counts)}">'
+                f'{html.escape(lb["lane"])} · {ri}</span>'
+            )
+        st.markdown(
+            f'<div class="lane-row">'
+            f'  <span class="lane-row-label">Lane Risk Index ↓</span>'
+            f'  {" ".join(chips)}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
     # Carry the lane info into the mapping dict so tooltips can show "[lane] label"
     mapping_for_tip = dict(mapping_result or {})
     if mapping_for_tip.get("mappings"):
@@ -814,13 +858,35 @@ if "mermaid" in st.session_state:
     tooltips = build_node_tooltips(
         [n.to_dict() for n in nodes_for_tip], mapping_for_tip, rcm_df
     )
-    # Heuristic height: scale with node count so we don't leave huge blank space
-    # below the chart on small swimlanes (was hard-coded 780 before).
+    # Inject "this node is on the critical path" into tooltip notes
+    for nid in crit.nodes:
+        if nid in tooltips:
+            existing = tooltips[nid].get("note", "")
+            mark = "🔴 Critical Path"
+            tooltips[nid]["note"] = f"{mark}{(' · ' + existing) if existing else ''}"
+
+    # Paint the critical path on the Mermaid source
+    mermaid_to_render = annotate_critical_path(mermaid_render, crit)
+
+    # Heuristic height: scale with node count
     _node_count = max(1, len(nodes_for_tip))
     _lane_count = max(1, len({n.lane for n in nodes_for_tip if n.lane}))
     _rows_per_lane = (_node_count + _lane_count - 1) // _lane_count
     _mermaid_h = max(420, min(820, 160 + _rows_per_lane * 110))
-    render_mermaid(mermaid_render, tooltips=tooltips, height=_mermaid_h)
+    render_mermaid(mermaid_to_render, tooltips=tooltips, height=_mermaid_h)
+
+    # Critical path summary line — exec-friendly, points at the worst chain
+    if crit.nodes:
+        crit_labels = [next((n.label for n in nodes_for_tip if n.node_id == nid), nid)
+                       for nid in crit.nodes]
+        st.markdown(
+            f'<div class="critical-path-bar">'
+            f'  <span class="cp-label">🔴 Critical Path</span>'
+            f'  <span class="cp-chain">{" → ".join(html.escape(x) for x in crit_labels)}</span>'
+            f'  <span class="cp-score">Risk Score · {crit.score}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
     # ===== Risk Alerts (after the flow) =====
     st.markdown("### 🚨 Risk Alert System")
