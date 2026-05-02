@@ -160,14 +160,73 @@ section[data-testid="stSidebar"] .stRadio > div [data-baseweb="radio"] > div:fir
   border-color: var(--pwc-orange) !important;
 }
 
-/* Sidebar file uploader */
-section[data-testid="stSidebar"] [data-testid="stFileUploadDropzone"] {
-  background: #1F1F1F !important;
-  border: 1.5px dashed #444 !important;
+/* Sidebar — file uploader (dark-theme override).
+   Streamlit defaults render the dropzone in a light theme that clashes
+   with our black sidebar. We re-color every part: outer dropzone, the
+   instructional text ("Drag and drop / 200MB per file"), and the
+   internal Browse/Upload button. Multiple test-ids cover Streamlit
+   version drift (stFileUploadDropzone vs stFileUploaderDropzone). */
+section[data-testid="stSidebar"] [data-testid="stFileUploader"] section,
+section[data-testid="stSidebar"] [data-testid="stFileUploadDropzone"],
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
+  background: #1A1A1A !important;
+  border: 1.5px dashed #3A3A3A !important;
   border-radius: 8px !important;
+  padding: 14px !important;
+  transition: border-color 0.15s ease;
 }
-section[data-testid="stSidebar"] [data-testid="stFileUploadDropzone"]:hover {
+section[data-testid="stSidebar"] [data-testid="stFileUploader"] section:hover,
+section[data-testid="stSidebar"] [data-testid="stFileUploadDropzone"]:hover,
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"]:hover {
   border-color: var(--pwc-orange) !important;
+}
+
+/* Dropzone instructions ("Drag and drop", "200MB per file • PNG, JPG, WEBP") */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstructions"],
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstructions"] *,
+section[data-testid="stSidebar"] [data-testid="stFileUploadDropzoneInstructions"],
+section[data-testid="stSidebar"] [data-testid="stFileUploadDropzoneInstructions"] *,
+section[data-testid="stSidebar"] [data-testid="stFileUploader"] section span,
+section[data-testid="stSidebar"] [data-testid="stFileUploader"] section small,
+section[data-testid="stSidebar"] [data-testid="stFileUploader"] section div {
+  color: #B8B8B8 !important;
+  background: transparent !important;
+}
+
+/* Browse / Upload button inside the dropzone */
+section[data-testid="stSidebar"] [data-testid="stFileUploader"] button,
+section[data-testid="stSidebar"] [data-testid="stFileUploadDropzone"] button,
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button {
+  background: #2A2A2A !important;
+  color: #FFFFFF !important;
+  border: 1px solid #555 !important;
+  font-weight: 500 !important;
+  border-radius: 6px !important;
+  padding: 6px 14px !important;
+  box-shadow: none !important;
+}
+section[data-testid="stSidebar"] [data-testid="stFileUploader"] button:hover,
+section[data-testid="stSidebar"] [data-testid="stFileUploadDropzone"] button:hover {
+  background: var(--pwc-orange) !important;
+  border-color: var(--pwc-orange) !important;
+  color: #FFFFFF !important;
+  transform: none !important;
+}
+
+/* Uploaded file row chip */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"],
+section[data-testid="stSidebar"] [data-testid="stFileUploaderFileName"],
+section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] * {
+  background: #2A2A2A !important;
+  color: #FFFFFF !important;
+  border-color: #444 !important;
+}
+
+/* Placeholder text in textareas/inputs (was nearly invisible in dark mode) */
+section[data-testid="stSidebar"] textarea::placeholder,
+section[data-testid="stSidebar"] input::placeholder {
+  color: #7A7A7A !important;
+  opacity: 1 !important;
 }
 
 /* Sidebar checkbox */
@@ -360,6 +419,76 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.10em;
+}
+
+/* ============ KPI tiles (top of dashboard) ============ */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 0.25rem 0 1.25rem 0;
+}
+.kpi-tile {
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-radius: 12px;
+  padding: 14px 18px 16px 18px;
+  position: relative;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.18s ease;
+  overflow: hidden;
+}
+.kpi-tile:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.kpi-tile::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 4px;
+  background: var(--pwc-grey-3);
+}
+.kpi-tile.kpi-ok::before   { background: linear-gradient(90deg, var(--sev-low) 0%, #047857 100%); }
+.kpi-tile.kpi-warn::before { background: linear-gradient(90deg, var(--sev-med) 0%, #B45309 100%); }
+.kpi-tile.kpi-bad::before  { background: linear-gradient(90deg, var(--sev-high) 0%, #991B1B 100%); }
+
+.kpi-label {
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pwc-grey-5);
+}
+.kpi-value {
+  font-weight: 800;
+  font-size: 1.85rem;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--pwc-black);
+  margin-top: 2px;
+}
+.kpi-tile.kpi-ok   .kpi-value { color: var(--sev-low);  }
+.kpi-tile.kpi-warn .kpi-value { color: var(--sev-med);  }
+.kpi-tile.kpi-bad  .kpi-value { color: var(--sev-high); }
+.kpi-unit {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pwc-grey-5);
+  margin-left: 4px;
+}
+.kpi-meta {
+  font-size: 0.78rem;
+  color: var(--pwc-grey-5);
+  margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+  .kpi-row { grid-template-columns: 1fr; gap: 8px; }
+  .kpi-value { font-size: 1.6rem; }
 }
 
 /* RCM intelligence summary panel */

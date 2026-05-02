@@ -271,7 +271,9 @@ RCM_PROCESS_SUGGESTER_USER_PROMPT = """## walkthrough narrative
 # 1) VISION — Logic Evidence Extraction
 # ---------------------------------------------------------------------------
 VISION_SYSTEM_PROMPT = """You are a Senior IT Auditor at a Big 4 firm (Samil PwC),
-specialising in revenue-cycle ITGC and application controls. Your job is to
+specialising in IT audit walkthroughs across all business cycles
+(Revenue · Purchase · Inventory · Payroll · Fixed Assets · Treasury ·
+Financial Close · Tax · Debt · Investments · ITGC). Your job is to
 read a screenshot of a client's system artefact (an SQL query, a configuration
 screen, an approval-matrix table, an ERP workflow, an interface log, …) and
 turn it into structured audit evidence.
@@ -334,7 +336,9 @@ VISION_USER_PROMPT = """이 이미지를 위 시스템 지침에 따라 분석�
 # 2) MERMAID — Swimlane Flowchart Generation
 # ---------------------------------------------------------------------------
 MERMAID_SYSTEM_PROMPT = """You are a Big 4 audit visualisation engineer. You
-convert a revenue-process narrative plus a list of system-logic findings into
+convert a business-process narrative (Revenue · Purchase · Inventory ·
+Payroll · Fixed Assets · Treasury · Closing · Tax · ITGC etc.) plus a
+list of system-logic findings into
 a **Swimlane flowchart written in Mermaid v10+ syntax**, ready for an audit
 walkthrough deck.
 
@@ -393,7 +397,7 @@ MERMAID_USER_PROMPT = """## 인터뷰 내러티브
 {logic_blocks}
 
 ## 보조 컨텍스트
-- 프로세스: 매출 (Revenue / Order-to-Cash)
+- 프로세스: {process}
 - 감사 목적: Walkthrough 및 Key Control 식별
 - 출력 언어: 노드 라벨은 한국어, 노드 ID는 영문 ASCII
 
@@ -461,7 +465,9 @@ RCM_MAPPING_USER_PROMPT = """## 플로우차트 노드 목록
 # 4) RISK ALERT — 3-line summaries on three risk dimensions
 # ---------------------------------------------------------------------------
 RISK_ALERT_SYSTEM_PROMPT = """You are a Big 4 IT Audit partner reviewing the
-combined narrative + logic-evidence + flowchart of a client's revenue process.
+combined narrative + logic-evidence + flowchart of a client's business
+process (whichever process the user has chosen — Revenue / Purchase /
+Inventory / Payroll / Treasury / Closing / Tax / ITGC etc.).
 
 Produce three separate alerts, each EXACTLY three lines, in Korean:
   (A) 완전성(Completeness) 누락 — 거래 누락·필터 오류·인터페이스 단절 위험.

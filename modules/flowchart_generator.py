@@ -79,11 +79,16 @@ def generate_mermaid(
     narrative: str,
     findings: List[LogicFinding],
     *,
+    process: str = "매출 (Revenue / Order-to-Cash)",
     api_key: Optional[str] = None,
     model: Optional[str] = None,
 ) -> str:
     logic_blocks = "\n\n".join(f.to_prompt_block() for f in findings) or "(증적 이미지 없음 — 내러티브만으로 작성하세요.)"
-    user = MERMAID_USER_PROMPT.format(narrative=narrative.strip() or "(빈 내러티브)", logic_blocks=logic_blocks)
+    user = MERMAID_USER_PROMPT.format(
+        narrative=narrative.strip() or "(빈 내러티브)",
+        logic_blocks=logic_blocks,
+        process=process or "매출 (Revenue / Order-to-Cash)",
+    )
     raw = call_text(
         MERMAID_SYSTEM_PROMPT,
         user,

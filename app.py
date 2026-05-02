@@ -30,6 +30,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
+from modules.audit_procedures import coverage_kpis, generate_procedures
 from modules.flowchart_generator import FlowNode, generate_mermaid, parse_nodes
 from modules.narrative_enricher import enrich_narrative
 from modules.rcm_mapper import (
@@ -38,6 +39,7 @@ from modules.rcm_mapper import (
     load_rcm, map_rcm, process_distribution, relevant_for_walkthrough,
     suggest_relevant_processes,
 )
+from modules.report_exporter import build_markdown_report
 from modules.risk_detector import detect_risks
 from modules.vision_analyzer import LogicFinding, analyze_image
 from samples.scenarios.manifest import SCENARIOS, by_label
@@ -373,6 +375,33 @@ with st.sidebar:
         )
 
         st.markdown("---")
+        st.markdown("### 0) 감사 대상 프로세스")
+        process_choice = st.selectbox(
+            "Process",
+            options=[
+                "매출 (Revenue / Order-to-Cash)",
+                "구매 (Purchase / Procure-to-Pay)",
+                "재고 (Inventory)",
+                "인사·급여 (HR & Payroll)",
+                "고정자산 (Fixed Assets)",
+                "자금·현금 (Cash & Treasury)",
+                "결산 (Financial Close)",
+                "세금 (Tax)",
+                "차입·투자 (Debt & Investments)",
+                "ITGC (User Access · Change Mgmt · Operations)",
+                "기타 (직접 입력)",
+            ],
+            index=0,
+            help="walkthrough 대상 비즈니스 프로세스. AI 보강 + 차트 생성 + 리스크 진단이 이 프로세스 맥락으로 동작합니다.",
+        )
+        process_custom = ""
+        if process_choice == "기타 (직접 입력)":
+            process_custom = st.text_input(
+                "프로세스 명칭 직접 입력",
+                placeholder="예) 재무보고 / 연결결산 / 임직원 경비 / 외환관리 …",
+            )
+        process_for_pipeline = process_custom.strip() or process_choice
+
         st.markdown("### 1) 인터뷰 내러티브")
         narrative = st.text_area(
             "고객 인터뷰 메모",
@@ -565,7 +594,11 @@ if run:
         enriched_narrative = original_narrative
         progress.progress(2, text="0️⃣ 내러티브 보강 중 (산업 맥락 추정)…")
         try:
-            result = enrich_narrative(original_narrative, api_key=api_key, model=model)
+            result = enrich_narrative(
+                original_narrative,
+                industry_hint=process_for_pipeline,
+                api_key=api_key, model=model,
+            )
             if result and len(result.strip()) > 40:
                 enriched_narrative = result
         except Exception as exc:
@@ -589,6 +622,7 @@ if run:
         progress.progress(35, text="② Swimlane 플로우차트 생성 중…")
         try:
             mermaid_code = generate_mermaid(narrative_for_pipeline, findings,
+                                             process=process_for_pipeline,
                                              api_key=api_key, model=model)
         except Exception as exc:
             st.error(f"Mermaid 생성 실패: {exc}")
@@ -706,6 +740,43 @@ if "mermaid" in st.session_state:
         unsafe_allow_html=True,
     )
 
+    # ===== KPI tiles (coverage / gaps / confidence) =====
+    nodes_for_kpi = parse_nodes(mermaid_raw) or []
+    kpis = coverage_kpis(
+        [n.to_dict() for n in nodes_for_kpi],
+        (mapping_result or {}).get("mappings", []),
+    )
+    cov_color = "ok" if kpis["coverage_pct"] >= 70 else (
+        "warn" if kpis["coverage_pct"] >= 40 else "bad")
+    gap_color = "bad" if kpis["gap_count"] >= 3 else (
+        "warn" if kpis["gap_count"] >= 1 else "ok")
+    conf = kpis["confidence"]
+    n_total_conf = max(1, sum(conf.values()))
+    high_pct = round(100 * conf["High"] / n_total_conf)
+    conf_color = "ok" if high_pct >= 60 else ("warn" if high_pct >= 30 else "bad")
+    st.markdown(
+        f'<div class="kpi-row">'
+        f'  <div class="kpi-tile kpi-{cov_color}">'
+        f'    <div class="kpi-label">📐 매핑 커버리지</div>'
+        f'    <div class="kpi-value">{kpis["coverage_pct"]}<span class="kpi-unit">%</span></div>'
+        f'    <div class="kpi-meta">{kpis["mapped_nodes"]} / {kpis["total_nodes"]} 노드</div>'
+        f'  </div>'
+        f'  <div class="kpi-tile kpi-{gap_color}">'
+        f'    <div class="kpi-label">⚠ 통제 공백</div>'
+        f'    <div class="kpi-value">{kpis["gap_count"]}<span class="kpi-unit">건</span></div>'
+        f'    <div class="kpi-meta">Design Control 권고</div>'
+        f'  </div>'
+        f'  <div class="kpi-tile kpi-{conf_color}">'
+        f'    <div class="kpi-label">🎯 매핑 신뢰도</div>'
+        f'    <div class="kpi-value">{high_pct}<span class="kpi-unit">% High</span></div>'
+        f'    <div class="kpi-meta">'
+        f'      H {conf["High"]} · M {conf["Medium"]} · L {conf["Low"]}'
+        f'    </div>'
+        f'  </div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
     # ===== Narrative (top, collapsed) — quick-reference, doesn't push content =====
     _was_enriched = st.session_state.get("narrative_was_enriched", False)
     _expander_label = ("🪄 AI가 보강한 내러티브 보기 (원본 + [추정] 표기)"
@@ -751,9 +822,6 @@ if "mermaid" in st.session_state:
     _mermaid_h = max(420, min(820, 160 + _rows_per_lane * 110))
     render_mermaid(mermaid_render, tooltips=tooltips, height=_mermaid_h)
 
-    with st.expander("Mermaid 소스 보기"):
-        st.code(mermaid_raw, language="mermaid")
-
     # ===== Risk Alerts (after the flow) =====
     st.markdown("### 🚨 Risk Alert System")
     rc1, rc2, rc3 = st.columns(3)
@@ -791,6 +859,56 @@ if "mermaid" in st.session_state:
                                 st.markdown(f"- {rf}")
         else:
             st.info("증적 이미지가 업로드되지 않았습니다 (또는 시나리오에 이미지가 없음).")
+
+    # ===== Audit Procedures (NEW — TOD/TOE recommendations) =====
+    procedures = generate_procedures(
+        (mapping_result or {}).get("mappings", []),
+        rcm_df,
+    )
+    if procedures:
+        st.markdown("### 🧪 추천 감사 절차 (TOD / TOE)")
+        st.caption("통제 빈도·자동화 수준에 따라 자동 추천된 표본·증빙·시점입니다. "
+                   "프로젝트별 위험 평가 결과로 조정하세요.")
+        proc_df = pd.DataFrame([
+            {
+                "Control":  p["control_id"],
+                "Step":     p["step"],
+                "Test Type": p["test_type"],
+                "표본":      p["sample_size"],
+                "증빙":      p["evidence"],
+                "시점":      p["timing"],
+                "Priority": p["priority"],
+            }
+            for p in procedures
+        ])
+        st.dataframe(proc_df, use_container_width=True, hide_index=True)
+
+    # ===== Report download =====
+    st.markdown("### 📥 보고서 다운로드")
+    md_report = build_markdown_report(
+        scenario_label=scenario_label,
+        severity=severity,
+        narrative=st.session_state.get("narrative_preview", ""),
+        narrative_was_enriched=st.session_state.get("narrative_was_enriched", False),
+        original_narrative=st.session_state.get("narrative_original", ""),
+        findings=[f if isinstance(f, dict) else f.__dict__ for f in findings],
+        mermaid=mermaid_raw,
+        risks=risks,
+        mapping=mapping_result,
+        rcm_intel=st.session_state.get("rcm_intel"),
+        procedures=procedures,
+        kpis=kpis,
+    )
+    fname = f"samil-walkthrough-{scenario_label[:30].replace(' ', '_').replace('/', '-')}.md"
+    st.download_button(
+        label="📄 Markdown 보고서 다운로드 (.md)",
+        data=md_report.encode("utf-8"),
+        file_name=fname,
+        mime="text/markdown",
+        use_container_width=True,
+    )
+    st.caption("💡 다운로드한 .md 파일을 GitHub·Notion·Obsidian에 붙이면 Mermaid 차트가 "
+               "자동 렌더링되고, Word·Google Docs에 붙여도 표 구조 그대로 유지됩니다.")
 
     with c2:
         st.markdown("### 🎯 Smart RCM Mapping")
