@@ -169,8 +169,29 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
       }}
       g.node {{ transition: filter 0.15s ease; }}
       g.edgePath, g.edgePaths > g {{ transition: stroke 0.15s ease; }}
+
+      /* SVG/PNG download toolbar */
+      .pwc-toolbar {{
+        position: absolute; top: 8px; right: 8px; z-index: 50;
+        display: flex; gap: 6px;
+      }}
+      .pwc-toolbar button {{
+        background: #FFFFFF; color: #1A1A1A;
+        border: 1px solid #E5E5E5; border-radius: 6px;
+        padding: 5px 10px; font-size: 12px; font-weight: 600;
+        cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        transition: all 0.12s ease;
+      }}
+      .pwc-toolbar button:hover {{
+        background: #DC6B2F; color: #FFFFFF; border-color: #DC6B2F;
+        transform: translateY(-1px);
+      }}
     </style>
-    <div class="mermaid-host">
+    <div class="mermaid-host" style="position:relative">
+      <div class="pwc-toolbar">
+        <button onclick="pwcExport('svg')">📥 SVG</button>
+        <button onclick="pwcExport('png')">📷 PNG</button>
+      </div>
       <pre class="mermaid">{safe}</pre>
     </div>
     <div id="pwc-tip" class="pwc-tip"></div>
@@ -291,6 +312,75 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
           }});
       }}
       run().catch(err => console.error("Mermaid render failed:", err));
+
+      // ──────────────────────────────────────────────────────────────
+      // Export the rendered SVG as either downloadable .svg or .png
+      // (PNG is rasterised at 2x for retina-quality slide insertion).
+      // ──────────────────────────────────────────────────────────────
+      window.pwcExport = function(format) {{
+        const host = document.querySelector(".mermaid-host");
+        const svg  = host && host.querySelector("svg");
+        if (!svg) {{
+          alert("차트가 아직 렌더링되지 않았어요.");
+          return;
+        }}
+        // Clone so we don't mutate what's on screen
+        const clone = svg.cloneNode(true);
+        // Inline the namespace; some viewers need it
+        clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+
+        // Compute proper width/height from the bounding box
+        const bbox = svg.getBoundingClientRect();
+        const w = Math.ceil(bbox.width);
+        const h = Math.ceil(bbox.height);
+        clone.setAttribute("width",  w);
+        clone.setAttribute("height", h);
+
+        const xml = new XMLSerializer().serializeToString(clone);
+        const today = new Date().toISOString().slice(0, 10);
+        const filename = `samil-flowchart-${{today}}.${{format}}`;
+
+        if (format === "svg") {{
+          const blob = new Blob([xml], {{type: "image/svg+xml;charset=utf-8"}});
+          triggerDownload(blob, filename);
+          return;
+        }}
+        // PNG path — rasterise via canvas at 2x for sharp slide quality
+        const SCALE = 2;
+        const url = "data:image/svg+xml;base64," +
+                    btoa(unescape(encodeURIComponent(xml)));
+        const img = new Image();
+        img.onload = function() {{
+          const canvas = document.createElement("canvas");
+          canvas.width  = w * SCALE;
+          canvas.height = h * SCALE;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#FFFFFF";  // ensure white bg in PNG
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.scale(SCALE, SCALE);
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob(function(blob) {{
+            triggerDownload(blob, filename);
+          }}, "image/png");
+        }};
+        img.onerror = function() {{
+          alert("PNG 변환 실패. SVG 다운로드를 시도해 보세요.");
+        }};
+        img.src = url;
+      }};
+
+      function triggerDownload(blob, filename) {{
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {{
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }}, 200);
+      }}
     </script>
     """
     st.components.v1.html(html_doc, height=height, scrolling=True)
@@ -810,8 +900,19 @@ if "mermaid" in st.session_state:
         )
 
     # ===== Flowchart (PRIMARY DELIVERABLE — show first) =====
-    st.markdown("### 🗺️ Dynamic Swimlane Flowchart")
-    st.caption("💡 노드/화살표 호버 → 통제·리스크 / 빨간 경로 = AI가 잡은 critical path")
+    flow_l, flow_r = st.columns([3, 2])
+    with flow_l:
+        st.markdown("### 🗺️ Dynamic Swimlane Flowchart")
+        st.caption("💡 호버 → 통제·리스크 / 빨간 경로 = critical path / 우상단 SVG·PNG로 다운로드")
+    with flow_r:
+        direction = st.radio(
+            "Layout",
+            options=["TB (세로)", "LR (가로)", "RL (역방향)"],
+            index=0, horizontal=True, label_visibility="collapsed",
+            help="긴 프로세스는 LR(가로)이 가독성 ↑",
+        )
+    _dir_map = {"TB (세로)": "TB", "LR (가로)": "LR", "RL (역방향)": "RL"}
+    _dir_code = _dir_map.get(direction, "TB")
 
     nodes_for_tip = parse_nodes(mermaid_raw) or []
 
@@ -876,6 +977,11 @@ if "mermaid" in st.session_state:
 
     # Paint the critical path on the Mermaid source
     mermaid_to_render = annotate_critical_path(mermaid_render, crit)
+    # User-chosen direction overrides the planner's default `flowchart TB`
+    mermaid_to_render = re.sub(
+        r"^\s*flowchart\s+\w+", f"flowchart {_dir_code}",
+        mermaid_to_render, count=1, flags=re.MULTILINE,
+    )
 
     # Heuristic height: scale with node count
     _node_count = max(1, len(nodes_for_tip))

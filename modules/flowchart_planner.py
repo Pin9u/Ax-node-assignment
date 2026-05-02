@@ -299,6 +299,20 @@ _CLASS_DEFS = """
   classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;""".strip("\n")
 
 
+# Subtle PwC-tinted pastels for lane backgrounds — picked so node fills
+# (#1A1A1A black, #FFE0CC orange, etc.) still pop against them.
+_LANE_PALETTE = [
+    "#FAFAFA",  # warm grey
+    "#FFF8F2",  # very pale orange
+    "#F4F4F4",  # cool grey
+    "#FFEFE0",  # peach
+    "#F0F0F0",  # neutral
+    "#FFF1E5",  # cream-orange
+    "#EAEAEA",  # darker neutral
+]
+_LANE_STROKE = "#DC6B2F"
+
+
 def _safe_label(label: str) -> str:
     """Always quote labels and convert newlines so Mermaid doesn't choke."""
     text = (label or "").strip().replace("\n", "<br/>")
@@ -342,12 +356,35 @@ def render_plan_to_mermaid(plan: FlowchartPlan, *, direction: str = "TB") -> str
 
     lines.append('')
     lines.append(_CLASS_DEFS)
+
+    # Per-lane subtle pastel background — picked deterministically so each
+    # lane keeps the same colour across re-renders (helps visual recall).
+    for i, lane in enumerate(sorted_lanes):
+        bg = _LANE_PALETTE[i % len(_LANE_PALETTE)]
+        lines.append(f'  style {lane.id} fill:{bg},stroke:{_LANE_STROKE},'
+                     f'stroke-width:1.5px,stroke-dasharray:0;')
+
     return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------------------
 # Top-level: narrative + findings + process → (Mermaid, validation, plan)
 # ---------------------------------------------------------------------------
+def _plan_to_compact_dict(plan: FlowchartPlan) -> Dict[str, Any]:
+    """Compact JSON of a plan for the self-improve feedback loop."""
+    return {
+        "process": plan.process,
+        "lanes": [{"id": l.id, "label_ko": l.label_ko,
+                   "sequence_index": l.sequence_index} for l in plan.lanes],
+        "nodes": [{"id": n.id, "lane": n.lane, "label_ko": n.label_ko,
+                   "shape": n.shape, "cls": n.cls,
+                   "evidence_source": n.evidence_source} for n in plan.nodes],
+        "edges": [{"from_id": e.from_id, "to_id": e.to_id,
+                   "label_ko": e.label_ko, "condition": e.condition}
+                  for e in plan.edges],
+    }
+
+
 def synthesize_flowchart(
     narrative: str,
     findings: List[LogicFinding],
@@ -356,8 +393,10 @@ def synthesize_flowchart(
     direction: str = "TB",
     api_key: Optional[str] = None,
     model: Optional[str] = None,
+    enable_self_improve: bool = True,
 ) -> Tuple[str, FlowchartPlan, PlanValidation]:
-    """Run the planner, validate, repair, and render.
+    """Run the planner, validate, repair, render — and optionally do one
+    self-improve round if validation surfaced warnings.
 
     Returns ``(mermaid_source, plan, validation)``.
     """
@@ -376,5 +415,55 @@ def synthesize_flowchart(
     plan = plan_from_json(_safe_json_loads(raw))
     plan = auto_repair_plan(plan)
     validation = validate_plan(plan, findings=findings)
+
+    # ── 2-shot self-improve ────────────────────────────────────────────
+    # If the first plan validates clean we ship it. If there are warnings
+    # (e.g. a Vision logic_branch wasn't surfaced as a decision node, or a
+    # decision node has only one outgoing edge), we send the plan + the
+    # warning list back to the LLM and ask for a fixed plan. We accept the
+    # second pass only if it strictly improves on the first.
+    if enable_self_improve and validation.warnings and not validation.errors:
+        try:
+            improve_user = (
+                "당신이 직전에 만든 plan과 자동 검증 경고들입니다. "
+                "**이 경고들을 모두 해소한 새로운 plan을** strict JSON 한 개로만 출력하세요. "
+                "원래 inputs 와 시스템 지침은 그대로 적용하세요.\n\n"
+                "## 직전 plan\n```json\n"
+                f"{json.dumps(_plan_to_compact_dict(plan), ensure_ascii=False, indent=2)}\n"
+                "```\n\n"
+                "## 자동 검증 경고\n"
+                + "\n".join(f"- {w}" for w in validation.warnings)
+                + "\n\n## 원본 inputs (변경 금지)\n"
+                + f"### narrative\n{narrative.strip()[:1500]}\n\n"
+                + f"### logic_blocks (요약)\n{logic_blocks[:1500]}\n\n"
+                + f"### process\n{process}\n\n"
+                "위 경고를 해결한 plan JSON 하나만 출력 (preamble 금지)."
+            )
+            raw2 = call_text(
+                FLOWCHART_PLANNER_SYSTEM_PROMPT, improve_user,
+                api_key=api_key, model=model,
+                max_tokens=4500, temperature=0.1,
+            )
+            plan2 = plan_from_json(_safe_json_loads(raw2))
+            plan2 = auto_repair_plan(plan2)
+            v2 = validate_plan(plan2, findings=findings)
+            # Accept the second pass only if it strictly improves
+            improved = (
+                len(v2.errors) <= len(validation.errors)
+                and len(v2.warnings) < len(validation.warnings)
+                and len(plan2.nodes) >= max(3, len(plan.nodes) - 2)
+            )
+            if improved:
+                plan = plan2
+                validation = v2
+                validation.info.append("✓ 2-shot self-improve 적용됨")
+            else:
+                validation.info.append(
+                    f"2-shot self-improve 시도했으나 개선 없음 — 1차 plan 유지 "
+                    f"(1차 경고 {len(validation.warnings)} → 2차 {len(v2.warnings)})"
+                )
+        except Exception as exc:
+            validation.info.append(f"self-improve 실패 (1차 plan 유지): {exc}")
+
     mermaid = render_plan_to_mermaid(plan, direction=direction)
     return mermaid, plan, validation
