@@ -650,6 +650,25 @@ if "mermaid" in st.session_state:
         unsafe_allow_html=True,
     )
 
+    # ===== Narrative (top, collapsed) — quick-reference, doesn't push content =====
+    _was_enriched = st.session_state.get("narrative_was_enriched", False)
+    _expander_label = ("🪄 AI가 보강한 내러티브 보기 (원본 + [추정] 표기)"
+                       if _was_enriched else "📝 분석에 사용된 내러티브 보기")
+    with st.expander(_expander_label, expanded=False):
+        if _was_enriched:
+            st.caption("`[추정]` 태그가 붙은 부분이 AI가 산업 맥락으로 보강한 내용입니다. "
+                       "사용자가 작성한 원본은 그대로 보존되어 있어요.")
+            with st.expander("👤 사용자 원본 내러티브 (입력값 그대로)", expanded=False):
+                st.markdown(
+                    f'<pre class="narrative-pre">{html.escape(st.session_state.get("narrative_original",""))}</pre>',
+                    unsafe_allow_html=True,
+                )
+        narrative_text = st.session_state.get("narrative_preview", "")
+        st.markdown(
+            f'<pre class="narrative-pre">{html.escape(narrative_text)}</pre>',
+            unsafe_allow_html=True,
+        )
+
     # ===== Flowchart (PRIMARY DELIVERABLE — show first) =====
     st.markdown("### 🗺️ Dynamic Swimlane Flowchart")
     st.caption("💡 노드/화살표에 마우스를 올리면 매핑된 통제·리스크가 떠요.")
@@ -668,7 +687,13 @@ if "mermaid" in st.session_state:
     tooltips = build_node_tooltips(
         [n.to_dict() for n in nodes_for_tip], mapping_for_tip, rcm_df
     )
-    render_mermaid(mermaid_render, tooltips=tooltips, height=780)
+    # Heuristic height: scale with node count so we don't leave huge blank space
+    # below the chart on small swimlanes (was hard-coded 780 before).
+    _node_count = max(1, len(nodes_for_tip))
+    _lane_count = max(1, len({n.lane for n in nodes_for_tip if n.lane}))
+    _rows_per_lane = (_node_count + _lane_count - 1) // _lane_count
+    _mermaid_h = max(420, min(820, 160 + _rows_per_lane * 110))
+    render_mermaid(mermaid_render, tooltips=tooltips, height=_mermaid_h)
 
     with st.expander("Mermaid 소스 보기"):
         st.code(mermaid_raw, language="mermaid")
@@ -723,23 +748,8 @@ if "mermaid" in st.session_state:
         else:
             st.info("RCM이 제공되지 않았거나 매칭된 통제가 없습니다.")
 
-    # Optional — narrative preview (explicit color forces light theme regardless of OS pref)
-    enriched_label = "🪄 AI 보강 내러티브" if st.session_state.get("narrative_was_enriched") \
-                     else "📝 분석에 사용된 내러티브"
-    with st.expander(enriched_label):
-        if st.session_state.get("narrative_was_enriched"):
-            st.caption("`[추정]` 태그가 붙은 부분이 AI가 산업 맥락으로 보강한 내용입니다. "
-                       "사용자가 작성한 원본은 그대로 보존되어 있어요.")
-            with st.expander("👤 사용자 원본 내러티브 (입력값 그대로)"):
-                st.markdown(
-                    f'<pre class="narrative-pre">{html.escape(st.session_state.get("narrative_original",""))}</pre>',
-                    unsafe_allow_html=True,
-                )
-        narrative_text = st.session_state.get("narrative_preview", "")
-        st.markdown(
-            f'<pre class="narrative-pre">{html.escape(narrative_text)}</pre>',
-            unsafe_allow_html=True,
-        )
+    # Narrative is shown right under the page header (collapsed) — see above.
+    # We keep the bottom area clean so the page ends on RCM mapping / gap summary.
 
 else:
     # Empty state — hero
