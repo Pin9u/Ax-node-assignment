@@ -392,11 +392,6 @@ with st.sidebar:
 # Header
 # ---------------------------------------------------------------------------
 st.markdown("# Samil Auto-Flow Auditor")
-st.markdown(
-    '<div class="subtitle">불친절한 증적을 → 감사 가능한 플로우차트와 리스크 진단으로. '
-    "Powered by Claude Vision + Mermaid · Hover any node or arrow for control & risk.</div>",
-    unsafe_allow_html=True,
-)
 
 
 # ---------------------------------------------------------------------------
