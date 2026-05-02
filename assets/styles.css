@@ -28,7 +28,17 @@
 .stApp {
   background: var(--pwc-grey-1);
   color: var(--pwc-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Pretendard",
+               "Apple SD Gothic Neo", "Malgun Gothic", system-ui,
+               "Helvetica Neue", Arial, sans-serif;
   font-feature-settings: "ss01" on, "ss02" on, "cv11" on;
+  color-scheme: light only;
+}
+/* Streamlit defaults <pre> & <code> can pick up the OS dark mode color (white)
+   even though our background is light — force readable colors everywhere. */
+.stApp pre, .stApp code {
+  color: var(--pwc-text);
+  background: var(--pwc-grey-2);
 }
 .block-container {
   padding-top: 1.25rem !important;
@@ -229,24 +239,29 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 }
 
 /* ============ Risk cards (3-axis) ============ */
+.risk-card,
+.risk-card * {
+  /* Force sans-serif inside the card regardless of which Streamlit element
+     this gets nested under — fixes the monospace bleed users were seeing. */
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Pretendard",
+               "Apple SD Gothic Neo", "Malgun Gothic", system-ui,
+               "Helvetica Neue", Arial, sans-serif !important;
+  white-space: normal !important;
+}
 .risk-card {
   background: #FFFFFF;
   border: 1px solid var(--pwc-grey-3);
-  border-radius: 12px;
-  padding: 18px 20px 16px 22px;
+  border-radius: 14px;
+  padding: 20px 22px 22px 26px;
   margin-bottom: 0;
   position: relative;
   box-shadow: var(--shadow-sm);
   transition: all 0.18s ease;
-  font-family: inherit !important;
-  white-space: normal !important;
-  font-size: 0.92rem;
-  line-height: 1.6;
   color: var(--pwc-text);
-  min-height: 195px;
+  min-height: 230px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 14px;
 }
 .risk-card:hover {
   box-shadow: var(--shadow-md);
@@ -259,57 +274,75 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   top: 0; left: 0;
   width: 5px; height: 100%;
   background: linear-gradient(180deg, var(--pwc-orange) 0%, var(--pwc-orange-deep) 100%);
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
+  border-top-left-radius: 14px;
+  border-bottom-left-radius: 14px;
 }
 .risk-card.ok::before {
   background: linear-gradient(180deg, var(--sev-low) 0%, #047857 100%);
 }
 .risk-card.ok {
-  background: linear-gradient(180deg, rgba(5,150,105,0.05) 0%, rgba(5,150,105,0.02) 100%);
+  background: linear-gradient(180deg, rgba(5,150,105,0.04) 0%, rgba(5,150,105,0.01) 100%);
+}
+
+/* Top row: section label + severity dot */
+.risk-card .risk-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .risk-card .risk-label {
-  font-weight: 700;
-  font-size: 0.72rem;
+  font-weight: 700 !important;
+  font-size: 0.72rem !important;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--pwc-grey-5);
-  margin-bottom: 2px;
+  letter-spacing: 0.10em;
+  color: var(--pwc-grey-5) !important;
 }
+.risk-card .risk-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
+}
+.risk-card .risk-dot-high { background: var(--sev-high); }
+.risk-card .risk-dot-ok   { background: var(--sev-low); }
+
+/* Headline */
 .risk-card .risk-headline {
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--pwc-black);
-  line-height: 1.35;
-  margin-bottom: 4px;
+  display: flex; gap: 10px; align-items: flex-start;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  color: var(--pwc-black) !important;
+  line-height: 1.45 !important;
 }
-.risk-card .risk-row {
+.risk-card .risk-headline-icon { font-size: 1.05rem; line-height: 1.45; flex: 0 0 auto; }
+.risk-card .risk-headline-text { flex: 1; word-break: keep-all; }
+.risk-card .risk-headline b { color: var(--pwc-black); font-weight: 700; }
+
+/* Section blocks (근거 / 권고) */
+.risk-card .risk-section {
   display: flex;
-  gap: 8px;
-  font-size: 0.86rem;
-  color: var(--pwc-grey-5);
-  line-height: 1.5;
+  flex-direction: column;
+  gap: 4px;
 }
-.risk-card .risk-row .tag {
-  flex: 0 0 auto;
-  background: var(--pwc-orange-soft);
-  color: var(--pwc-orange-deep);
-  font-weight: 700;
-  font-size: 0.7rem;
-  padding: 2px 8px;
-  border-radius: 4px;
-  height: fit-content;
-  letter-spacing: 0.04em;
+.risk-card .risk-section-label {
+  font-weight: 700 !important;
+  font-size: 0.72rem !important;
   text-transform: uppercase;
-  margin-top: 1px;
-  white-space: nowrap;
+  letter-spacing: 0.07em;
+  color: var(--pwc-orange-deep) !important;
+  display: flex; align-items: center; gap: 4px;
 }
-.risk-card.ok .risk-row .tag {
-  background: rgba(5,150,105,0.12);
-  color: var(--sev-low);
+.risk-card.ok .risk-section-label { color: var(--sev-low) !important; }
+.risk-card .risk-section-body {
+  font-size: 0.88rem !important;
+  color: var(--pwc-grey-5) !important;
+  line-height: 1.65 !important;
+  word-break: keep-all;
 }
-.risk-card .risk-row span.body { flex: 1; color: var(--pwc-text); }
-.risk-card b { color: var(--pwc-black); font-weight: 700; }
+.risk-card .risk-section-body b {
+  color: var(--pwc-black) !important;
+  font-weight: 700;
+}
 
 /* ============ Generic info card ============ */
 .audit-card {
@@ -431,7 +464,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   vertical-align: middle;
 }
 
-/* Section header row (title + right-aligned badge) */
+/* Section header row (title + right-aligned badge) — legacy, kept for safety */
 .section-header-row {
   display: flex;
   align-items: center;
@@ -441,3 +474,61 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   margin-bottom: 1.25rem;
 }
 .section-header-row h2 { margin: 0 !important; }
+
+/* Page header — title block on the left, severity pill on the right */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0.25rem 0 1.5rem 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--pwc-grey-3);
+}
+.page-header-left { min-width: 0; flex: 1; }
+.page-title {
+  margin: 0 !important;
+  font-size: 1.5rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.015em !important;
+  color: var(--pwc-black) !important;
+}
+.page-subtitle {
+  margin-top: 6px;
+  font-size: 0.92rem;
+  color: var(--pwc-grey-5);
+  font-weight: 500;
+  word-break: keep-all;
+}
+
+/* ============ Narrative <pre> block ============ */
+.narrative-pre {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Pretendard",
+               "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif !important;
+  color: var(--pwc-text) !important;
+  background: var(--pwc-grey-2) !important;
+  padding: 18px 20px !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--pwc-grey-3) !important;
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: keep-all !important;
+  font-size: 0.88rem !important;
+  line-height: 1.75 !important;
+  margin: 0 !important;
+  overflow-x: auto !important;
+}
+
+/* ============ Responsive ============ */
+@media (max-width: 720px) {
+  .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
+  h1 { font-size: 1.6rem !important; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .severity-pill { align-self: flex-start; }
+  .risk-card { min-height: 0; padding: 18px 18px 18px 22px; }
+  .risk-card .risk-headline { font-size: 0.95rem !important; }
+  .risk-card .risk-section-body { font-size: 0.86rem !important; }
+  .hero-card { padding: 22px 20px; }
+  .scenario-meta { display: block; margin-left: 0 !important; margin-top: 6px !important; }
+}

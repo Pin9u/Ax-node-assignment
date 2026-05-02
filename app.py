@@ -479,35 +479,37 @@ def _render_risk_card(title: str, body: str | None) -> None:
         s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
         return s
 
-    # Split each line at the first colon so the prefix becomes a small tag.
-    def _row(line: str, fallback_tag: str) -> str:
+    def _section(icon: str, label: str, line: str) -> str:
         if not line or line == "-":
             return ""
-        # Match either "키: 본문" or "키 · 본문"
-        m = re.match(r"^([^:·]{1,12})\s*[:·]\s*(.+)$", line)
-        if m:
-            tag = m.group(1).strip()
-            rest = m.group(2).strip()
-        else:
-            tag = fallback_tag
-            rest = line
+        # If the line begins with "키: 본문" or "키 · 본문", drop the redundant prefix
+        # since our section label already says the same thing.
+        m = re.match(r"^[^:·]{1,12}\s*[:·]\s*(.+)$", line)
+        rest = m.group(1).strip() if m else line
         return (
-            f'<div class="risk-row">'
-            f'<span class="tag">{html.escape(tag)}</span>'
-            f'<span class="body">{_polish(rest)}</span>'
+            f'<div class="risk-section">'
+            f'  <div class="risk-section-label">{icon} {html.escape(label)}</div>'
+            f'  <div class="risk-section-body">{_polish(rest)}</div>'
             f'</div>'
         )
 
-    # Strip leading 🚨/✅ for cleaner headline display
+    # Strip leading 🚨/✅ for the cleaner headline display
     clean_headline = re.sub(r"^[🚨✅]\s*", "", headline)
     headline_html = _polish(clean_headline)
+    sev_dot_class = "ok" if is_ok else "high"
 
     st.markdown(
         f'<div class="{cls}">'
-        f'  <div class="risk-label">{html.escape(title)}</div>'
-        f'  <div class="risk-headline">{("✅ " if is_ok else "🚨 ") + headline_html}</div>'
-        f'  {_row(evidence, "근거")}'
-        f'  {_row(recommendation, "권고")}'
+        f'  <div class="risk-card-header">'
+        f'    <span class="risk-label">{html.escape(title)}</span>'
+        f'    <span class="risk-dot risk-dot-{sev_dot_class}"></span>'
+        f'  </div>'
+        f'  <div class="risk-headline">'
+        f'    <span class="risk-headline-icon">{"✅" if is_ok else "🚨"}</span>'
+        f'    <span class="risk-headline-text">{headline_html}</span>'
+        f'  </div>'
+        f'  {_section("📌", "발견 근거", evidence)}'
+        f'  {_section("💡", "권고", recommendation)}'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -616,10 +618,11 @@ if "mermaid" in st.session_state:
     sev_class = f"sev-{severity}" if severity in ("Low", "Medium", "High") else "sev-Low"
 
     st.markdown(
-        f'<div class="section-header-row">'
-        f'  <h2>📊 감사 대시보드'
-        f'    <span class="scenario-meta">{html.escape(scenario_label)}</span>'
-        f'  </h2>'
+        f'<div class="page-header">'
+        f'  <div class="page-header-left">'
+        f'    <h2 class="page-title">📊 감사 대시보드</h2>'
+        f'    <div class="page-subtitle">{html.escape(scenario_label)}</div>'
+        f'  </div>'
         f'  <span class="severity-pill {sev_class}">Overall · {html.escape(severity)}</span>'
         f'</div>',
         unsafe_allow_html=True,
@@ -698,9 +701,13 @@ if "mermaid" in st.session_state:
         else:
             st.info("RCM이 제공되지 않았거나 매칭된 통제가 없습니다.")
 
-    # Optional — narrative preview
+    # Optional — narrative preview (explicit color forces light theme regardless of OS pref)
     with st.expander("📝 분석에 사용된 내러티브"):
-        st.text(st.session_state.get("narrative_preview", ""))
+        narrative_text = st.session_state.get("narrative_preview", "")
+        st.markdown(
+            f'<pre class="narrative-pre">{html.escape(narrative_text)}</pre>',
+            unsafe_allow_html=True,
+        )
 
 else:
     # Empty state — hero
