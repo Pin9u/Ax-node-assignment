@@ -31,6 +31,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from modules.flowchart_generator import FlowNode, generate_mermaid, parse_nodes
+from modules.narrative_enricher import enrich_narrative
 from modules.rcm_mapper import annotate_mermaid, load_rcm, map_rcm
 from modules.risk_detector import detect_risks
 from modules.vision_analyzer import LogicFinding, analyze_image
@@ -369,9 +370,16 @@ with st.sidebar:
         st.markdown("---")
         st.markdown("### 1) 인터뷰 내러티브")
         narrative = st.text_area(
-            "고객 인터뷰 메모", height=220,
-            placeholder="예) 영업팀이 ERP에 SO를 등록하면, 1천만원 미만 거래는 자동승인되고…",
+            "고객 인터뷰 메모",
+            height=180,
+            placeholder=(
+                "예) 옴니채널 리테일.\n"
+                "POS 거래는 본사로 실시간 송신.\n"
+                "점포장이 EOD 차이를 단독 보정함."
+            ),
+            help="짧게 써도 OK. AI가 산업 맥락으로 통제점·SoD까지 추정해 보강합니다 ([추정] 태그로 표시).",
         )
+        st.caption("💡 한두 문장 + 산업명만 적어도 됩니다. 자세할수록 정확도 ↑")
         st.markdown("### 2) 로직 증적 이미지")
         image_files = st.file_uploader(
             "SQL · 설정 캡쳐본 (다중 업로드 가능)",
@@ -544,12 +552,28 @@ if run:
         upload_iter = [(f.name, f.getvalue(), f.type or "image/png") for f in (image_files or [])]
         progress = st.progress(0, text="준비 중…")
 
+        # ---------- Step 0 — Narrative Enrichment ----------
+        # Take whatever the user wrote (one line, three bullets, anything)
+        # and fill in plausible audit-relevant defaults from industry knowledge,
+        # tagged [추정] so the auditor can see what the AI added vs verbatim input.
+        original_narrative = narrative
+        enriched_narrative = original_narrative
+        progress.progress(2, text="0️⃣ 내러티브 보강 중 (산업 맥락 추정)…")
+        try:
+            result = enrich_narrative(original_narrative, api_key=api_key, model=model)
+            if result and len(result.strip()) > 40:
+                enriched_narrative = result
+        except Exception as exc:
+            st.warning(f"내러티브 보강 실패 — 원본 그대로 진행: {exc}")
+        narrative_for_pipeline = enriched_narrative
+
         progress.progress(5, text="① 증적 이미지 분석 중…")
         findings: List[LogicFinding] = []
         if upload_iter:
             n_total = len(upload_iter)
             for i, (name, data, mime) in enumerate(upload_iter, start=1):
-                f = analyze_image(data, name, mime_type=mime, narrative_excerpt=narrative,
+                f = analyze_image(data, name, mime_type=mime,
+                                  narrative_excerpt=narrative_for_pipeline,
                                   api_key=api_key, model=model)
                 findings.append(f)
                 progress.progress(5 + int(25 * i / n_total),
@@ -559,7 +583,8 @@ if run:
 
         progress.progress(35, text="② Swimlane 플로우차트 생성 중…")
         try:
-            mermaid_code = generate_mermaid(narrative, findings, api_key=api_key, model=model)
+            mermaid_code = generate_mermaid(narrative_for_pipeline, findings,
+                                             api_key=api_key, model=model)
         except Exception as exc:
             st.error(f"Mermaid 생성 실패: {exc}")
             st.stop()
@@ -577,7 +602,7 @@ if run:
 
         progress.progress(85, text="④ 리스크 진단 중…")
         try:
-            risks = detect_risks(narrative, findings, mermaid_code, mapping_result,
+            risks = detect_risks(narrative_for_pipeline, findings, mermaid_code, mapping_result,
                                  api_key=api_key, model=model)
         except Exception as exc:
             st.warning(f"리스크 진단 실패: {exc}")
@@ -594,7 +619,9 @@ if run:
         st.session_state["risks"] = risks
         st.session_state["rcm_df"] = rcm_df
         st.session_state["scenario_label"] = "Real Mode"
-        st.session_state["narrative_preview"] = narrative
+        st.session_state["narrative_preview"] = enriched_narrative
+        st.session_state["narrative_original"] = original_narrative
+        st.session_state["narrative_was_enriched"] = enriched_narrative.strip() != original_narrative.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -623,14 +650,7 @@ if "mermaid" in st.session_state:
         unsafe_allow_html=True,
     )
 
-    # ===== Risk Alerts =====
-    st.markdown("### 🚨 Risk Alert System")
-    rc1, rc2, rc3 = st.columns(3)
-    with rc1: _render_risk_card("(A) Completeness", risks.get("completeness"))
-    with rc2: _render_risk_card("(B) Segregation of Duties", risks.get("sod"))
-    with rc3: _render_risk_card("(C) Manual Intervention", risks.get("manual"))
-
-    # ===== Flowchart with hover tooltips =====
+    # ===== Flowchart (PRIMARY DELIVERABLE — show first) =====
     st.markdown("### 🗺️ Dynamic Swimlane Flowchart")
     st.caption("💡 노드/화살표에 마우스를 올리면 매핑된 통제·리스크가 떠요.")
     nodes_for_tip = parse_nodes(mermaid_raw) or []
@@ -652,6 +672,13 @@ if "mermaid" in st.session_state:
 
     with st.expander("Mermaid 소스 보기"):
         st.code(mermaid_raw, language="mermaid")
+
+    # ===== Risk Alerts (after the flow) =====
+    st.markdown("### 🚨 Risk Alert System")
+    rc1, rc2, rc3 = st.columns(3)
+    with rc1: _render_risk_card("(A) Completeness", risks.get("completeness"))
+    with rc2: _render_risk_card("(B) Segregation of Duties", risks.get("sod"))
+    with rc3: _render_risk_card("(C) Manual Intervention", risks.get("manual"))
 
     # ===== Two-column =====
     c1, c2 = st.columns([1, 1])
@@ -697,7 +724,17 @@ if "mermaid" in st.session_state:
             st.info("RCM이 제공되지 않았거나 매칭된 통제가 없습니다.")
 
     # Optional — narrative preview (explicit color forces light theme regardless of OS pref)
-    with st.expander("📝 분석에 사용된 내러티브"):
+    enriched_label = "🪄 AI 보강 내러티브" if st.session_state.get("narrative_was_enriched") \
+                     else "📝 분석에 사용된 내러티브"
+    with st.expander(enriched_label):
+        if st.session_state.get("narrative_was_enriched"):
+            st.caption("`[추정]` 태그가 붙은 부분이 AI가 산업 맥락으로 보강한 내용입니다. "
+                       "사용자가 작성한 원본은 그대로 보존되어 있어요.")
+            with st.expander("👤 사용자 원본 내러티브 (입력값 그대로)"):
+                st.markdown(
+                    f'<pre class="narrative-pre">{html.escape(st.session_state.get("narrative_original",""))}</pre>',
+                    unsafe_allow_html=True,
+                )
         narrative_text = st.session_state.get("narrative_preview", "")
         st.markdown(
             f'<pre class="narrative-pre">{html.escape(narrative_text)}</pre>',

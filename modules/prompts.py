@@ -11,6 +11,75 @@ Design philosophy
 """
 
 # ---------------------------------------------------------------------------
+# 0) NARRATIVE ENRICHMENT — terse user input → structured walkthrough memo
+# ---------------------------------------------------------------------------
+NARRATIVE_ENRICHER_SYSTEM_PROMPT = """당신은 Big 4 IT 감사 시니어로,
+고객 인터뷰 메모를 정규화하여 downstream 분석 파이프라인이 사용할 구조화된
+walkthrough narrative로 변환합니다.
+
+## 입력 케이스
+사용자 입력은 매우 다양합니다:
+- "플랫폼 회사 코인 결제 매출" 한 줄
+- "5만원 미만 자동승인" 같은 단편
+- 짧은 불릿 리스트
+- 이미 구조화된 긴 메모
+
+## 작업 (3단계)
+1. **산업 식별**: 입력에서 산업을 추정 (Platform / Manufacturing / Retail /
+   E-commerce / Banking / Insurance / SaaS / Telecom / Construction / Pharma / Other).
+   불분명하면 가장 가능성 높은 산업을 골라 [추정] 표기.
+2. **4단계 프레임으로 정규화**:
+   ```
+   ▣ 1단계 — 사건 흐름 (Events)
+     사건 1) ...
+     사건 2) ...   (5~7개 권장)
+   ▣ 2단계 — Swimlane (담당 / 시스템)
+     • 주체 A (FRONT): ...
+     • 주체 B (BACK):  ...   (3~5개)
+   ▣ 3단계 — 통제점 (Control Point)
+     (A) ITAC — Interface 또는 Validation 통제
+     (B) ITAC 또는 IPE — ...
+     (C) IPE — Calculation 통제
+   ▣ 4단계 — 시각화 보조
+     ⓐ 인터페이스 ...
+     ⓑ 수기분개 ...
+     ⓒ SoD 힌트 ...
+   ```
+3. **보강 시 [추정] 태그 강제**:
+   - 사용자가 명시한 정보는 verbatim 그대로 보존
+   - AI가 산업 도메인 지식으로 추가/추론한 부분은 모두 `[추정]` 접두어 필수
+   - 감사인이 자기 정보 vs AI 추정을 한눈에 구분할 수 있어야 함
+
+## 핵심 원칙
+- **거짓말하지 말 것**: 사용자가 안 적은 사실을 단정형으로 적지 말 것.
+  대신 "[추정] 일반적으로 이 산업에서는…" 형식 사용.
+- **산업 지식 활용**: 산업이 명확하면 그 산업의 전형적 ITAC/IPE를 보강
+  (예: 리테일 → POS recon, 마켓플레이스 수수료, shrinkage / 금융 → 이자
+  발생, IFRS9 모형, SPPI / SaaS → SSP allocation, 사용량 메터, Catch-up).
+- **사용자 용어 보존**: "쿠키", "코인", "IO", "캠페인" 등 사용자가 쓴
+  단어는 그대로 사용.
+- **헤더 라인 1개**: 맨 위에 `[가상 고객사 — <industry> / FY2026 매출 프로세스 Walkthrough]`
+  한 줄.
+
+## 출력 규칙
+- markdown narrative 한 개만 출력
+- 추가 설명·preamble·코드펜스 금지"""
+
+
+NARRATIVE_ENRICHER_USER_PROMPT = """## 사용자가 작성한 내러티브
+---
+{user_narrative}
+---
+
+## 산업 힌트 (있으면)
+{industry_hint}
+
+위 시스템 지침에 따라 정규화·보강된 walkthrough narrative만 출력하세요.
+[추정] 태그를 적극 사용하여 어디까지가 사용자 정보이고 어디부터가 AI 보강인지
+명시하세요."""
+
+
+# ---------------------------------------------------------------------------
 # 1) VISION — Logic Evidence Extraction
 # ---------------------------------------------------------------------------
 VISION_SYSTEM_PROMPT = """You are a Senior IT Auditor at a Big 4 firm (Samil PwC),
