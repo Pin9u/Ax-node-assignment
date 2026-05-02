@@ -13,7 +13,9 @@ Run with:  streamlit run app.py
 
 from __future__ import annotations
 
+import html
 import os
+import re
 import time
 from pathlib import Path
 from typing import List
@@ -115,6 +117,11 @@ with st.sidebar:
 
     st.markdown("---")
     run = st.button("🚀 Auto-Flow 분석 실행", use_container_width=True)
+    run_demo = st.button(
+        "🎬 샘플로 한 번에 실행 (네이버웹툰 시나리오)",
+        use_container_width=True,
+        help="WebtooNX 코인 결제 매출 walkthrough — 인터뷰 메모 + SQL/설정 캡쳐 + RCM 일괄 적용",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -186,41 +193,67 @@ def _render_risk_card(title: str, body: str | None) -> None:
     body = (body or "").strip()
     is_ok = body.startswith("✅")
     cls = "risk-card ok" if is_ok else "risk-card"
+    safe = html.escape(body)
+    safe = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", safe)
+    safe = safe.replace("\n", "<br/>")
     st.markdown(
-        f'<div class="{cls}"><b>{title}</b>\n\n{body}</div>',
+        f'<div class="{cls}"><div style="font-weight:700;margin-bottom:8px">{title}</div>{safe}</div>',
         unsafe_allow_html=True,
     )
 
 
-if run:
+def _load_sample_assets():
+    """Pulls the bundled WebtooNX scenario into in-memory uploads."""
+    base = Path(__file__).parent / "samples"
+    narrative_text = (base / "sample_narrative.txt").read_text(encoding="utf-8")
+    images = []
+    for name in ("sample_sql_screenshot.png", "sample_promo_config_screenshot.png"):
+        p = base / name
+        if p.exists():
+            images.append((name, p.read_bytes(), "image/png"))
+    rcm = pd.read_csv(base / "sample_rcm.csv")
+    return narrative_text, images, rcm
+
+
+if run or run_demo:
     if not api_key:
         st.error("좌측 사이드바에 Claude API Key를 입력하세요.")
         st.stop()
-    if not narrative.strip() and not image_files:
-        st.error("최소한 인터뷰 내러티브 또는 증적 이미지 한 장은 필요합니다.")
-        st.stop()
 
-    rcm_df = _load_rcm_df()
+    if run_demo:
+        narrative_text, sample_images, rcm_df = _load_sample_assets()
+        # Materialize the sample images as (name, bytes, mime) tuples that the
+        # downstream loop can iterate over with the same shape as Streamlit's
+        # UploadedFile.
+        upload_iter = sample_images
+        narrative = narrative_text
+        st.info("🎬 샘플 시나리오(WebtooNX 코인 결제 매출)를 사용하여 분석합니다.")
+    else:
+        if not narrative.strip() and not image_files:
+            st.error("최소한 인터뷰 내러티브 또는 증적 이미지 한 장은 필요합니다.")
+            st.stop()
+        upload_iter = [(f.name, f.getvalue(), f.type or "image/png") for f in (image_files or [])]
+        rcm_df = _load_rcm_df()
 
     progress = st.progress(0, text="준비 중…")
 
     # -------- Step 1: Vision -------------------------------------------------
     progress.progress(5, text="① 증적 이미지 분석 중…")
     findings: List[LogicFinding] = []
-    if image_files:
-        for i, up in enumerate(image_files, start=1):
-            mime = up.type or "image/png"
+    if upload_iter:
+        n_total = len(upload_iter)
+        for i, (name, data, mime) in enumerate(upload_iter, start=1):
             f = analyze_image(
-                up.getvalue(),
-                up.name,
+                data,
+                name,
                 mime_type=mime,
                 narrative_excerpt=narrative,
                 api_key=api_key,
                 model=model,
             )
             findings.append(f)
-            progress.progress(5 + int(25 * i / len(image_files)),
-                              text=f"① 증적 분석 {i}/{len(image_files)} — {up.name}")
+            progress.progress(5 + int(25 * i / n_total),
+                              text=f"① 증적 분석 {i}/{n_total} — {name}")
     else:
         progress.progress(30, text="① 증적 이미지 없음 — 건너뜀")
 

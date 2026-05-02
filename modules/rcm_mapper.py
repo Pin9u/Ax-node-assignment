@@ -77,25 +77,46 @@ def map_rcm(
     return _safe_json_loads(raw)
 
 
-def annotate_mermaid(mermaid: str, mapping_result: Dict[str, Any]) -> str:
-    """Append ``click NODE callback "<tag>"`` tooltips to the Mermaid source.
+_NODE_LABEL_TEMPLATE = re.compile(
+    # capture: id, opening brackets+optional quote, label content, closing quote+brackets
+    r"(?P<id>\b{nid}\b)"
+    r"(?P<open>\s*[\[\(\{{/\\]+\s*\"?)"
+    r"(?P<label>[^\"\]\}}\)/\\\n]+?)"
+    r"(?P<close>\"?\s*[\]\)\}}/\\]+)"
+)
 
-    Mermaid renders the second argument as a tooltip on hover, which gives
-    auditors the RCM tag-on-diagram experience without breaking the layout.
+
+def annotate_mermaid(mermaid: str, mapping_result: Dict[str, Any]) -> str:
+    """Inject the RCM tag directly into each node's visible label.
+
+    Mermaid renders ``<br/>`` inside a label as a hard line break, so the
+    auditor sees the control ID right under the activity name on the diagram.
+    For ungrabbed steps we surface ``⚠ GAP`` so weakness is visible at a glance.
     """
     if not mapping_result or not mapping_result.get("mappings"):
         return mermaid
-    extra: List[str] = []
+
+    out = mermaid
     for m in mapping_result["mappings"]:
         nid = m.get("node_id")
-        cid = m.get("matched_control_id")
-        conf = m.get("confidence", "?")
         if not nid:
             continue
-        tag = f"{cid} · {conf}" if cid else f"GAP · {conf}"
-        # Escape double quotes in tag — Mermaid is finicky.
-        safe_tag = tag.replace('"', "'")
-        extra.append(f'click {nid} callback "{safe_tag}"')
-    if not extra:
-        return mermaid
-    return mermaid.rstrip() + "\n" + "\n".join(extra) + "\n"
+        cid = m.get("matched_control_id")
+        if cid:
+            tag = f"📎 {cid}"
+        elif m.get("is_gap"):
+            tag = "⚠ GAP"
+        else:
+            continue
+
+        pattern = re.compile(_NODE_LABEL_TEMPLATE.pattern.format(nid=re.escape(nid)))
+
+        def _sub(mm: "re.Match[str]") -> str:
+            existing = mm.group("label").strip()
+            # Avoid double-tagging on re-runs.
+            if tag in existing:
+                return mm.group(0)
+            return f"{mm.group('id')}{mm.group('open')}{existing}<br/>{tag}{mm.group('close')}"
+
+        out = pattern.sub(_sub, out, count=1)
+    return out
