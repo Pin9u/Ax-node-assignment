@@ -80,24 +80,57 @@ def generate_mermaid(
     findings: List[LogicFinding],
     *,
     process: str = "매출 (Revenue / Order-to-Cash)",
+    direction: str = "TB",
     api_key: Optional[str] = None,
     model: Optional[str] = None,
-) -> str:
-    logic_blocks = "\n\n".join(f.to_prompt_block() for f in findings) or "(증적 이미지 없음 — 내러티브만으로 작성하세요.)"
-    user = MERMAID_USER_PROMPT.format(
-        narrative=narrative.strip() or "(빈 내러티브)",
-        logic_blocks=logic_blocks,
-        process=process or "매출 (Revenue / Order-to-Cash)",
-    )
-    raw = call_text(
-        MERMAID_SYSTEM_PROMPT,
-        user,
-        api_key=api_key,
-        model=model,
-        max_tokens=4096,
-        temperature=0.2,
-    )
-    return _strip_fences(raw)
+    return_metadata: bool = False,
+):
+    """Two-stage synthesis path.
+
+    Primary  : LLM → strict JSON plan → deterministic Python renderer
+               (eliminates Mermaid syntax errors entirely).
+    Fallback : if planner JSON parsing fails, retry once via the legacy
+               direct-Mermaid prompt.
+
+    When ``return_metadata=True`` the function returns
+    ``(mermaid, plan, validation)``; otherwise just the Mermaid string
+    (preserves the old call signature).
+    """
+    # Local import to avoid a circular import at module load time.
+    from .flowchart_planner import synthesize_flowchart
+
+    try:
+        mermaid, plan, validation = synthesize_flowchart(
+            narrative, findings,
+            process=process, direction=direction,
+            api_key=api_key, model=model,
+        )
+        if return_metadata:
+            return mermaid, plan, validation
+        return mermaid
+    except Exception as planner_exc:
+        # Legacy fallback path
+        logic_blocks = "\n\n".join(f.to_prompt_block() for f in findings) or "(증적 이미지 없음 — 내러티브만으로 작성하세요.)"
+        user = MERMAID_USER_PROMPT.format(
+            narrative=narrative.strip() or "(빈 내러티브)",
+            logic_blocks=logic_blocks,
+            process=process or "매출 (Revenue / Order-to-Cash)",
+        )
+        raw = call_text(
+            MERMAID_SYSTEM_PROMPT,
+            user,
+            api_key=api_key,
+            model=model,
+            max_tokens=4096,
+            temperature=0.2,
+        )
+        mermaid = _strip_fences(raw)
+        if return_metadata:
+            from .flowchart_planner import FlowchartPlan, PlanValidation
+            v = PlanValidation()
+            v.warnings.append(f"Planner 실패 → 직접 Mermaid 생성 fallback 사용: {planner_exc}")
+            return mermaid, FlowchartPlan(), v
+        return mermaid
 
 
 def parse_nodes(mermaid: str) -> List[FlowNode]:

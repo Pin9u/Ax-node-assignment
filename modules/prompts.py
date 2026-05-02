@@ -406,6 +406,109 @@ MERMAID_USER_PROMPT = """## 인터뷰 내러티브
 
 
 # ---------------------------------------------------------------------------
+# 2b) FLOWCHART PLANNER — JSON-first synthesis (replaces direct Mermaid)
+# ---------------------------------------------------------------------------
+# This is the *accurate* path: instead of asking Claude to output Mermaid
+# syntax (which routinely produces missing brackets, duplicate ids, or
+# subgraph mismatches), we ask for a strict structured plan. A
+# deterministic Python renderer then converts the plan into syntactically
+# perfect Mermaid every time.
+
+FLOWCHART_PLANNER_SYSTEM_PROMPT = """당신은 Big 4 IT 감사 walkthrough의
+플로우차트 설계자입니다. 사용자의 narrative + Vision logic 분석 결과 + 대상
+프로세스 정보를 받아, **순수 JSON plan** 한 개를 반환합니다. **절대로
+Mermaid 문법을 출력하지 마세요** — 별도의 Python 렌더러가 plan을 받아 완벽한
+Mermaid 코드로 변환합니다. 당신은 의미·구조·정확성에만 집중하면 됩니다.
+
+## JSON Schema (strict)
+
+{
+  "process": "<프로세스 명칭 verbatim>",
+  "lanes": [
+    {
+      "id": "<ASCII 식별자 8자 이내, 대문자 권장>",
+      "label_ko": "<한국어 swimlane 제목, 24자 이내>",
+      "sequence_index": <int 0~9, 왼쪽→오른쪽 순서>
+    }
+  ],
+  "nodes": [
+    {
+      "id": "<lane_id + 일련번호 (예: SALES1, ERP3) — 전역 유니크>",
+      "lane": "<위 lanes 배열의 id 중 하나>",
+      "label_ko": "<한국어 노드 라벨, 25자 이내, 줄바꿈은 자동 처리됨>",
+      "shape": "process | decision | data_store | document | manual_step | round | hexagon",
+      "cls":   "automated | manual | control | risk | (빈 문자열)",
+      "evidence_source": "<출처 인용. 'narrative §3-(B)' 또는 'vision: <filename> §<branch_index>' 또는 'inferred'>"
+    }
+  ],
+  "edges": [
+    {
+      "from_id":  "<node id>",
+      "to_id":    "<node id>",
+      "label_ko": "<엣지 라벨, optional, 12자 이내>",
+      "condition":"<Y | N | 빈 문자열> — decision 노드에서 분기될 때만"
+    }
+  ],
+  "notes": ["<auditor-friendly 한국어 메모, optional>"]
+}
+
+## SHAPE 매핑 규칙 — STRICT
+| 의미                                         | shape         |
+|----------------------------------------------|---------------|
+| 일반 프로세스 단계                            | process       |
+| 결정·분기·yes/no·임계값 분기                  | decision      |
+| DB 테이블·원장·ledger·마스터                 | data_store    |
+| 출력 보고서·증빙 문서·인보이스·IPE            | document      |
+| 사람이 수행하는 수동 단계 (시스템 강제 X)    | manual_step   |
+| 외부 주체(고객·OEM·파트너)                   | round         |
+| 시스템 이벤트·트리거                         | hexagon       |
+
+## CLS 규칙 — 노드당 정확히 한 개 (없으면 빈 문자열)
+| cls       | 의미                                                 |
+|-----------|------------------------------------------------------|
+| automated | 시스템 자동 강제, 사람 우회 불가                   |
+| manual    | 사람이 수행, 시스템 강제 없음                        |
+| control   | Key Control — 테스트 대상 통제 (3-way match 등)     |
+| risk      | Red-flagged — SoD 위반·완전성 공백·우회 경로        |
+
+## 품질 기준 (감사 방어 가능성)
+1. **누락 0**: narrative·evidence에 등장하는 *모든 actor*가 본인 lane을 가져야 함.
+2. **logic branch → decision**: Vision이 식별한 *모든 logic_branch* 가 차트에
+   decision 노드로 표현되어야 함.
+3. **handoff → cross-lane edge**: 부서·시스템 간 인계는 항상 lane을 가로지르는
+   edge로.
+4. **evidence_source 필수**: 모든 노드는 "어디서 왔는지" 인용. 감사 방어 가능성의
+   핵심.
+5. **노드 수**: 12~25개 권장. 너무 적으면 디테일 부족, 너무 많으면 가독성 저하.
+6. **유니크 id**: id 중복 절대 금지.
+7. **edge 정합성**: from_id, to_id 모두 nodes 배열에 존재해야 함.
+8. **추정 표기**: 사용자가 명시하지 않은 노드는 label에 `[추정]` 접두어.
+
+## Anti-hallucination
+- narrative·evidence에 *없는 lane* 만들지 말 것.
+- narrative·evidence에 *없는 통제 활동* 만들지 말 것.
+- 사용자 verbatim 용어 (쿠키·코인·IO·캠페인 등)는 그대로 사용.
+- 산업 지식으로 보강할 때는 label에 `[추정]` 표기.
+
+## 출력
+strict JSON 한 개만. 코드펜스 금지. preamble 금지. 추가 설명 금지."""
+
+
+FLOWCHART_PLANNER_USER_PROMPT = """## 인터뷰 내러티브
+{narrative}
+
+## 시스템 로직 증적 요약 (Vision 분석 결과)
+{logic_blocks}
+
+## 보조 컨텍스트
+- 프로세스: {process}
+- 감사 목적: Walkthrough 및 Key Control 식별
+- 출력 언어: 노드/lane label 한국어, ID 영문 ASCII
+
+위 시스템 지침에 따라 JSON plan 한 개만 출력."""
+
+
+# ---------------------------------------------------------------------------
 # 3) RCM MAPPING — Smart Tag-on-Diagram
 # ---------------------------------------------------------------------------
 RCM_MAPPING_SYSTEM_PROMPT = """You are a Big 4 IT Audit manager mapping flowchart

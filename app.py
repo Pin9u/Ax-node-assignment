@@ -623,14 +623,23 @@ if run:
         else:
             progress.progress(30, text="① 증적 이미지 없음 — 건너뜀")
 
-        progress.progress(35, text="② Swimlane 플로우차트 생성 중…")
+        progress.progress(35, text="② Swimlane 플로우차트 설계·렌더링 중…")
+        plan_validation = None
         try:
-            mermaid_code = generate_mermaid(narrative_for_pipeline, findings,
-                                             process=process_for_pipeline,
-                                             api_key=api_key, model=model)
+            mermaid_code, _plan, plan_validation = generate_mermaid(
+                narrative_for_pipeline, findings,
+                process=process_for_pipeline,
+                api_key=api_key, model=model,
+                return_metadata=True,
+            )
         except Exception as exc:
             st.error(f"Mermaid 생성 실패: {exc}")
             st.stop()
+        st.session_state["plan_validation"] = {
+            "errors":   plan_validation.errors   if plan_validation else [],
+            "warnings": plan_validation.warnings if plan_validation else [],
+            "info":     plan_validation.info     if plan_validation else [],
+        }
         nodes = parse_nodes(mermaid_code)
         progress.progress(55, text=f"② 차트 생성 완료 — {len(nodes)} 노드")
 
@@ -874,6 +883,28 @@ if "mermaid" in st.session_state:
     _rows_per_lane = (_node_count + _lane_count - 1) // _lane_count
     _mermaid_h = max(420, min(820, 160 + _rows_per_lane * 110))
     render_mermaid(mermaid_to_render, tooltips=tooltips, height=_mermaid_h)
+
+    # Plan validation panel (Real Mode — surfaces issues from the planner)
+    pv = st.session_state.get("plan_validation") or {}
+    if pv.get("errors") or pv.get("warnings"):
+        n_err  = len(pv.get("errors", []))
+        n_warn = len(pv.get("warnings", []))
+        badge_cls = "plan-bad" if n_err else "plan-warn"
+        badge_txt = (f"❌ {n_err} 오류" if n_err else "") + \
+                    (("  ·  " if n_err and n_warn else "") +
+                     f"⚠ {n_warn} 경고" if n_warn else "")
+        with st.expander(f"🔍 차트 검증 결과 — {badge_txt}", expanded=False):
+            st.caption("AI plan → 결정론적 Mermaid 렌더 후 자동 검증한 결과입니다. "
+                       "오류는 차트 렌더링 자체를 깨뜨릴 수 있어 즉시 fallback이 작동했고, "
+                       "경고는 렌더는 되지만 누락 가능성이 의심되는 항목입니다.")
+            for e in pv.get("errors", []):
+                st.markdown(f"- ❌ {e}")
+            for w in pv.get("warnings", []):
+                st.markdown(f"- ⚠ {w}")
+            for i in pv.get("info", []):
+                st.markdown(f"- ℹ {i}")
+    elif pv.get("info"):
+        st.caption(f"✓ 차트 검증 통과 ({' · '.join(pv['info'])})")
 
     # Critical path summary line — exec-friendly, points at the worst chain
     if crit.nodes:
