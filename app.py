@@ -887,32 +887,3 @@ else:
         """,
         unsafe_allow_html=True,
     )
-    demo = """flowchart TB
-  subgraph SALES["영업팀"]
-    SALES1[주문 접수]:::manual
-    SALES2[ERP 주문 등록]:::automated
-  end
-  subgraph ERP["ERP"]
-    ERP1{신용한도 초과?}:::control
-    ERP2[자동승인]:::automated
-    ERP3[\\수동 승인 대기\\]:::risk
-  end
-  SALES1 -->|주문서| SALES2
-  SALES2 --> ERP1
-  ERP1 -->|N| ERP2
-  ERP1 -->|Y| ERP3
-  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;
-  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;
-  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;
-  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;
-"""
-    st.markdown("#### 📌 미리보기 (실행 전)")
-    render_mermaid(demo, tooltips={
-        "ERP1": {"label":"신용한도 초과?","lane":"ERP","control_id":"RC-REV-002",
-                 "control_activity":"주문 저장 시 ERP가 credit_limit 자동 검증",
-                 "risk_description":"한도 초과 외상매출 무승인 처리",
-                 "is_gap": False, "note":""},
-        "ERP3": {"label":"수동 승인 대기","lane":"ERP","control_id":"",
-                 "control_activity":"","risk_description":"",
-                 "is_gap": True, "note":"통제 공백 — 본부장 단독 override"}
-    }, height=520)
