@@ -75,30 +75,88 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
 
     html_doc = f"""
     <style>
-      body {{ margin: 0; font-family: Inter, system-ui, sans-serif; }}
-      .mermaid-host {{ background:#FFFFFF; border:1px solid #ECECEC;
-                       border-radius:6px; padding:16px; min-height:{height-40}px; }}
+      html, body {{
+        margin: 0; padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Pretendard",
+                     system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+        color: #1A1A1A;
+        background: transparent;
+      }}
+      .mermaid-host {{
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 24px;
+        min-height: {height - 40}px;
+      }}
+      .mermaid {{ display: flex; justify-content: center; }}
+      .mermaid svg {{ max-width: 100%; height: auto; }}
+
+      /* Floating audit tooltip */
       .pwc-tip {{
-          position: fixed; pointer-events: none; z-index: 9999;
-          max-width: 360px; background:#1A1A1A; color:#FFF;
-          border-left: 4px solid #DC6B2F; border-radius: 6px;
-          padding: 10px 12px; font-size: 12.5px; line-height: 1.45;
-          box-shadow: 0 6px 18px rgba(0,0,0,0.25);
-          opacity: 0; transition: opacity .12s ease;
+        position: fixed; pointer-events: none; z-index: 99999;
+        max-width: 380px; min-width: 240px;
+        background: #1A1A1A; color: #FFFFFF;
+        border-radius: 10px;
+        border-left: 4px solid #DC6B2F;
+        padding: 14px 16px;
+        font-size: 12.5px; line-height: 1.55;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 4px 8px rgba(0,0,0,0.20);
+        opacity: 0; transform: translateY(-4px);
+        transition: opacity .14s ease, transform .14s ease;
       }}
-      .pwc-tip.show {{ opacity: 1; }}
-      .pwc-tip .h    {{ font-weight: 700; color:#FFE0CC; margin-bottom: 4px;
-                        text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }}
-      .pwc-tip .ctl  {{ color:#FFFFFF; margin-bottom: 4px; }}
-      .pwc-tip .risk {{ color:#FFAE80; }}
-      .pwc-tip .gap  {{ color:#FF7A4D; font-weight:700; }}
-      /* Subtle highlight on the hovered node/edge */
-      .pwc-hover-node > rect, .pwc-hover-node > polygon, .pwc-hover-node > circle {{
-          stroke: #DC6B2F !important; stroke-width: 3px !important;
+      .pwc-tip.show {{ opacity: 1; transform: translateY(0); }}
+      .pwc-tip .h {{
+        font-weight: 700; color: #FFB58A;
+        margin-bottom: 6px;
+        text-transform: uppercase; letter-spacing: 0.06em; font-size: 10.5px;
       }}
-      .pwc-hover-edge .path, .pwc-hover-edge path {{
-          stroke: #DC6B2F !important; stroke-width: 2.5px !important;
+      .pwc-tip .label {{
+        color: #FFFFFF; font-weight: 700; font-size: 13.5px;
+        margin-bottom: 8px;
       }}
+      .pwc-tip .ctl {{
+        background: rgba(220, 107, 47, 0.18);
+        border-left: 3px solid #DC6B2F;
+        padding: 8px 10px;
+        border-radius: 4px;
+        color: #FFFFFF;
+        margin-bottom: 8px;
+      }}
+      .pwc-tip .ctl b {{ color: #FFE0CC; font-size: 12px; letter-spacing: 0.02em; }}
+      .pwc-tip .ctl .activity {{ color: #DDDDDD; font-size: 11.5px; margin-top: 4px; display: block; }}
+      .pwc-tip .risk {{
+        color: #FFAE80; font-size: 11.5px;
+        background: rgba(255, 174, 128, 0.07);
+        padding: 6px 8px; border-radius: 4px;
+        margin-top: 4px;
+      }}
+      .pwc-tip .risk b {{ color: #FFD3B8; }}
+      .pwc-tip .gap {{
+        background: rgba(255, 122, 77, 0.20);
+        color: #FFB58A; font-weight: 700;
+        padding: 8px 10px;
+        border-radius: 4px;
+        text-align: center;
+        letter-spacing: 0.04em;
+        margin-bottom: 8px;
+      }}
+      .pwc-tip .note {{ color: #BBBBBB; font-size: 11px; font-style: italic; margin-top: 6px; }}
+
+      /* Hover highlights on the SVG */
+      .pwc-hover-node > rect,
+      .pwc-hover-node > polygon,
+      .pwc-hover-node > circle,
+      .pwc-hover-node > path {{
+          stroke: #DC6B2F !important;
+          stroke-width: 3px !important;
+          filter: drop-shadow(0 0 8px rgba(220,107,47,0.35));
+      }}
+      .pwc-hover-edge path {{
+          stroke: #DC6B2F !important;
+          stroke-width: 3px !important;
+      }}
+      g.node {{ transition: filter 0.15s ease; }}
+      g.edgePath, g.edgePaths > g {{ transition: stroke 0.15s ease; }}
     </style>
     <div class="mermaid-host">
       <pre class="mermaid">{safe}</pre>
@@ -125,16 +183,22 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
 
       function buildHTML(meta) {{
           if (!meta) return "";
-          const head = `<div class="h">${{meta.lane || ""}}</div>`;
-          const ctl  = meta.is_gap
-              ? `<div class="ctl gap">⚠ 통제 공백 (Control Gap)</div>`
-              : (meta.control_id
-                  ? `<div class="ctl"><b>📎 ${{meta.control_id}}</b><br/>${{meta.control_activity || ""}}</div>`
-                  : `<div class="ctl">매핑된 통제 없음</div>`);
+          const head  = meta.lane  ? `<div class="h">${{meta.lane}}</div>` : "";
+          const label = meta.label ? `<div class="label">${{meta.label}}</div>` : "";
+          let ctl;
+          if (meta.is_gap) {{
+              ctl = `<div class="gap">⚠ 통제 공백 (CONTROL GAP)</div>`;
+          }} else if (meta.control_id) {{
+              const activity = meta.control_activity
+                  ? `<span class="activity">${{meta.control_activity}}</span>` : "";
+              ctl = `<div class="ctl"><b>📎 ${{meta.control_id}}</b>${{activity}}</div>`;
+          }} else {{
+              ctl = `<div class="note">매핑된 통제 없음</div>`;
+          }}
           const risk = meta.risk_description
               ? `<div class="risk"><b>리스크</b> · ${{meta.risk_description}}</div>` : "";
-          const note = meta.note ? `<div class="risk">${{meta.note}}</div>` : "";
-          return `${{head}}<div><b>${{meta.label || ""}}</b></div>${{ctl}}${{risk}}${{note}}`;
+          const note = meta.note ? `<div class="note">${{meta.note}}</div>` : "";
+          return `${{head}}${{label}}${{ctl}}${{risk}}${{note}}`;
       }}
 
       function showTip(html, ev) {{
@@ -394,14 +458,57 @@ def _mappings_to_table(mapping: dict) -> pd.DataFrame:
 
 
 def _render_risk_card(title: str, body: str | None) -> None:
+    """Parse the 3-line risk block into a structured card.
+
+    Expected body shape (Korean):
+        Line 1:  🚨 **<headline>**            (or ✅ **이상 징후 없음**)
+        Line 2:  발견 근거: ...                 (or "-")
+        Line 3:  권고: ...                      (or "-")
+    """
     body = (body or "").strip()
     is_ok = body.startswith("✅")
     cls = "risk-card ok" if is_ok else "risk-card"
-    safe = html.escape(body)
-    safe = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", safe)
-    safe = safe.replace("\n", "<br/>")
+
+    lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
+    headline = lines[0] if lines else "—"
+    evidence = lines[1] if len(lines) > 1 else ""
+    recommendation = lines[2] if len(lines) > 2 else ""
+
+    def _polish(s: str) -> str:
+        s = html.escape(s)
+        s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+        return s
+
+    # Split each line at the first colon so the prefix becomes a small tag.
+    def _row(line: str, fallback_tag: str) -> str:
+        if not line or line == "-":
+            return ""
+        # Match either "키: 본문" or "키 · 본문"
+        m = re.match(r"^([^:·]{1,12})\s*[:·]\s*(.+)$", line)
+        if m:
+            tag = m.group(1).strip()
+            rest = m.group(2).strip()
+        else:
+            tag = fallback_tag
+            rest = line
+        return (
+            f'<div class="risk-row">'
+            f'<span class="tag">{html.escape(tag)}</span>'
+            f'<span class="body">{_polish(rest)}</span>'
+            f'</div>'
+        )
+
+    # Strip leading 🚨/✅ for cleaner headline display
+    clean_headline = re.sub(r"^[🚨✅]\s*", "", headline)
+    headline_html = _polish(clean_headline)
+
     st.markdown(
-        f'<div class="{cls}"><div style="font-weight:700;margin-bottom:8px">{title}</div>{safe}</div>',
+        f'<div class="{cls}">'
+        f'  <div class="risk-label">{html.escape(title)}</div>'
+        f'  <div class="risk-headline">{("✅ " if is_ok else "🚨 ") + headline_html}</div>'
+        f'  {_row(evidence, "근거")}'
+        f'  {_row(recommendation, "권고")}'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -508,16 +615,15 @@ if "mermaid" in st.session_state:
     severity = (risks or {}).get("overall_severity", "—")
     sev_class = f"sev-{severity}" if severity in ("Low", "Medium", "High") else "sev-Low"
 
-    top_l, top_r = st.columns([3, 1])
-    with top_l:
-        st.markdown(f"## 📊 감사 대시보드  <span style='font-size:0.6em;color:#888'>· {scenario_label}</span>",
-                    unsafe_allow_html=True)
-    with top_r:
-        st.markdown(
-            f'<div style="text-align:right;padding-top:14px;">'
-            f'<span class="severity-pill {sev_class}">Overall · {severity}</span></div>',
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        f'<div class="section-header-row">'
+        f'  <h2>📊 감사 대시보드'
+        f'    <span class="scenario-meta">{html.escape(scenario_label)}</span>'
+        f'  </h2>'
+        f'  <span class="severity-pill {sev_class}">Overall · {html.escape(severity)}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     # ===== Risk Alerts =====
     st.markdown("### 🚨 Risk Alert System")
@@ -597,15 +703,23 @@ if "mermaid" in st.session_state:
         st.text(st.session_state.get("narrative_preview", ""))
 
 else:
-    # Empty state
+    # Empty state — hero
     st.markdown(
         """
-        <div class="audit-card">
-        <h4>Getting Started</h4>
-        ① 좌측 사이드바에서 <b>Demo Mode</b>를 선택 (API 키 불필요).<br>
-        ② 10개 산업 시나리오 중 하나를 골라 <b>🎬 데모 시나리오 로드</b> 클릭.<br>
-        ③ 플로우차트가 뜨면 노드·화살표에 마우스를 올려 통제·리스크를 호버 확인.<br>
-        ④ 실 API로 자체 데이터를 분석하려면 Real Mode로 전환.
+        <div class="hero-card">
+          <h2>👋 시작하기</h2>
+          <div class="step"><div class="step-num">1</div>
+            <div>좌측 사이드바에서 <b>🎬 Demo Mode</b>를 선택하세요. <em>API 키 없이도 동작합니다.</em></div>
+          </div>
+          <div class="step"><div class="step-num">2</div>
+            <div>10개 산업 시나리오 중 하나를 고르고 <b>🎬 데모 시나리오 로드</b>를 누르세요.</div>
+          </div>
+          <div class="step"><div class="step-num">3</div>
+            <div>아래 미리보기 차트처럼, 실제 화면에서 <b>노드·화살표에 마우스를 올리면</b> 매핑된 통제번호와 리스크가 검정 카드로 떠요.</div>
+          </div>
+          <div class="step"><div class="step-num">4</div>
+            <div>본인 회사 데이터로 분석하려면 <b>🔌 Real Mode</b>로 전환 후 Anthropic API 키를 넣으세요.</div>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
