@@ -1,0 +1,48 @@
+[가상 고객사 — "한빛생명" (생명보험사) / FY2026 보험료 수익 인식 Walkthrough]
+
+면담 대상   : 영업관리팀 박 부장, 계약관리팀 정 차장, 회계팀 김 책임, 보험계리팀 이 책임
+일시        : 2026-04-27
+대상 프로세스: 신계약 보험료 수익 인식 (IFRS17 — Insurance Revenue / CSM)
+
+▣ 1단계 — 사건 흐름 (Events)
+  사건 1) 설계사가 청약서 입력 → POLICY_APPLICATION 생성 → 인수심사(Underwriting)
+          → 청약일·승낙일 결정 → POLICY 마스터 발행.
+  사건 2) 초회 보험료 자동이체 → 계약 효력 발생 → 계약자별 RPF / SPPI 분류.
+  사건 3) IFRS17 모형이 PVFCF (미래현금흐름 현가) + RA (위험조정) + CSM (계약서비스마진)
+          을 계산하여 GMM/PAA 그룹별 부채 산정.
+  사건 4) 매월 CSM 의 일정 비율을 BOOKED_REVENUE 로 인식 (Coverage Units 기반).
+          또한 Risk Adjustment 의 시간경과 해소분도 매출 인식.
+  사건 5) 사망·해지·만기 발생 시 INSURANCE_SERVICE_EXPENSE 차감 + LRC/LIC 재측정.
+
+▣ 2단계 — Swimlane
+  • 주체 A (CHANNEL)   : 설계사·GA·온슈어 (외부)
+  • 주체 B (CORE)      : 계약관리시스템 / 보험금 시스템
+  • 주체 C (ACTUARIAL) : IFRS17 모형 (Coverage Unit / CSM / RA 계산)
+  • 주체 D (ACCT)      : 결산 시스템 / 재보험 모듈
+
+▣ 3단계 — 통제점(Control Point)
+  (A) ITAC — Coverage Unit Calculation
+      모형이 매월 GROUP 별 Coverage Unit 합계를 계산하여 CSM 상각률을 산정. 단,
+      Coverage Unit 산정 룰(현가가중·할인율적용)이 ACTUARIAL_RULE 에 파라미터로 운영
+      되며 보험계리팀이 GUI로 수정 가능. 변경 로그만 자동 보존되고 외부감사인 통보
+      절차는 공식 운영되지 않음.
+  (B) ITAC — Premium Receipt Reconciliation
+      자동이체 결과(PG_BANK_RECEIPT)와 POLICY_PREMIUM_LINE 합계를 일배치로 자동대사.
+      미수보험료(LATE_PAYMENT)는 한도 30일까지 효력 유지 후 실효 처리. 단,
+      특별승인 으로 60일까지 유예 가능하며 영업관리팀장 단독 승인.
+  (C) IPE — CSM Allocation Output
+      월말 CSM 상각액 = (GROUP CSM × 당월 CU / 잔여 CU). 잔여 CU 산정 시 가정 변경
+      (Assumption Change) 의 효과를 'Locked-in' vs 'Current' 곡선 중 무엇으로 적용
+      하는지를 보험계리팀이 선택 가능 — IFRS17의 "재량적 가정 변경" 영역.
+
+▣ 4단계 — 시각화 보조
+  ⓐ 인터페이스 — Channel→Core(실시간), Core→Actuarial(월배치),
+     Actuarial→GL(월결산).
+  ⓑ 재보험(Reinsurance) — 출재계약은 별도 모듈에서 일배치 처리 후 net 반영.
+  ⓒ 수기 분개 — 가정 변경(Onerous Group 전환) 분개는 보험계리팀이 단독 등록·게시.
+  ⓓ SoD — 보험계리팀 시니어가 ACTUARIAL_RULE 변경과 변경 결과 승인을 동시 보유.
+
+▣ 핵심 리스크 신호
+  - Completeness: 30/60일 유예 미수보험료의 매출 회복 누락.
+  - SoD: 모형 파라미터 변경자 = 결과 검증자 동일.
+  - Manual: Onerous 전환 분개·재량적 가정 변경의 사후 검토 부재.

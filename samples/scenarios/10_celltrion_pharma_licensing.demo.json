@@ -1,0 +1,61 @@
+{
+  "vision_findings": [],
+  "mermaid": "flowchart TB\n  subgraph PART[\"🌐 글로벌 파트너 (외부)\"]\n    P1[/분기 Net Sales 보고/]:::manual\n  end\n  subgraph BD[\"🤝 사업개발팀\"]\n    B1[CONTRACT 마스터]:::automated\n    B2[\\EX_TRIGGER 증빙없는 등록<br/>📎 RC-PHA-001\\]:::risk\n  end\n  subgraph CL[\"🔬 임상·승인\"]\n    C1[MILESTONE_TRIGGER]:::control\n  end\n  subgraph ACCT[\"💰 RevRec / Royalty Hub\"]\n    A1[Upfront 인식]:::control\n    A2[\\Constraint Ratio 단독 결정<br/>📎 RC-PHA-003\\]:::risk\n    A3[Royalty 자동대사<br/>📎 RC-PHA-002]:::control\n    A4[\\추정 모형 단독 변경<br/>📎 RC-PHA-002\\]:::risk\n    A5[\\클로백·차이정산 단독 분개<br/>📎 RC-PHA-004\\]:::risk\n  end\n  P1 --> A3\n  B1 --> A1\n  B2 --> C1\n  C1 --> A2\n  A2 --> A1\n  A4 --> A3\n  A3 --> A5\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "mermaid_raw": "flowchart TB\n  subgraph PART[\"🌐 글로벌 파트너 (외부)\"]\n    P1[/분기 Net Sales 보고/]:::manual\n  end\n  subgraph BD[\"🤝 사업개발팀\"]\n    B1[CONTRACT 마스터]:::automated\n    B2[\\EX_TRIGGER 증빙없는 등록\\]:::risk\n  end\n  subgraph CL[\"🔬 임상·승인\"]\n    C1[MILESTONE_TRIGGER]:::control\n  end\n  subgraph ACCT[\"💰 RevRec / Royalty Hub\"]\n    A1[Upfront 인식]:::control\n    A2[\\Constraint Ratio 단독 결정\\]:::risk\n    A3[Royalty 자동대사]:::control\n    A4[\\추정 모형 단독 변경\\]:::risk\n    A5[\\클로백·차이정산 단독 분개\\]:::risk\n  end\n  P1 --> A3\n  B1 --> A1\n  B2 --> C1\n  C1 --> A2\n  A2 --> A1\n  A4 --> A3\n  A3 --> A5\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "rcm_mapping": {
+    "mappings": [
+      {
+        "node_id": "B2",
+        "node_label": "EX_TRIGGER 증빙없는 등록",
+        "matched_control_id": "RC-PHA-001",
+        "matched_control_activity": "예외 등록 시 R&D재무·CFO 2단 승인",
+        "confidence": "High",
+        "rationale_ko": "마일스톤 증빙 통제 매핑 — 미운영",
+        "is_gap": true
+      },
+      {
+        "node_id": "A2",
+        "node_label": "Constraint Ratio 단독 결정",
+        "matched_control_id": "RC-PHA-003",
+        "matched_control_activity": "마일스톤별 비율 메이커-체커",
+        "confidence": "High",
+        "rationale_ko": "가변대가 제약 통제 매핑 — 미운영",
+        "is_gap": true
+      },
+      {
+        "node_id": "A3",
+        "node_label": "Royalty 자동대사",
+        "matched_control_id": "RC-PHA-002",
+        "matched_control_activity": "추정 모형 변경 메이커-체커",
+        "confidence": "Medium",
+        "rationale_ko": "Royalty 정산 대사 매핑",
+        "is_gap": false
+      },
+      {
+        "node_id": "A4",
+        "node_label": "추정 모형 단독 변경",
+        "matched_control_id": "RC-PHA-002",
+        "matched_control_activity": "추정 모형 변경 메이커-체커",
+        "confidence": "High",
+        "rationale_ko": "통제 정의 존재하나 미운영",
+        "is_gap": true
+      },
+      {
+        "node_id": "A5",
+        "node_label": "클로백·차이정산 단독 분개",
+        "matched_control_id": "RC-PHA-004",
+        "matched_control_activity": "월별 CFO 전수 검토 서명",
+        "confidence": "Medium",
+        "rationale_ko": "분개 검토 통제 매핑",
+        "is_gap": false
+      }
+    ],
+    "gap_summary_ko": "EX_TRIGGER·Constraint·추정모형 3대 공백."
+  },
+  "risks": {
+    "completeness": "🚨 **파트너 보고 지연 시 추정 차이 모니터링 부재**\n발견 근거: 인터뷰 §3-(B).\n권고: 추정 vs 실제 차이 분기 인용 + RC-PHA-002 메이커-체커 가동.",
+    "sod": "🚨 **EX_TRIGGER 등록자 = 마일스톤 인식 승인자 동일**\n발견 근거: 인터뷰 §4-ⓓ.\n권고: 예외등록 시 CFO 2단 승인 강제 + 충돌룰.",
+    "manual": "🚨 **Constraint Ratio 단독 결정 + 클로백 단독 분개**\n발견 근거: 인터뷰 §3-(C), §4-ⓒ.\n권고: 마일스톤별 비율 메이커-체커 + CFO 100% 인용 — Inspection.",
+    "overall_severity": "High"
+  }
+}

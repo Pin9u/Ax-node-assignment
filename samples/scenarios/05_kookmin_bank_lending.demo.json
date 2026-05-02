@@ -1,0 +1,110 @@
+{
+  "vision_findings": [
+    {
+      "filename": "05_banking__daily_accrual.png",
+      "artifact_type": "SQL_QUERY",
+      "title_ko": "일배치 발생이자 계산 + EOD_EXCEPTION 자동 흡수",
+      "raw_extraction": "MERGE INTO interest_accrual_line tgt USING (SELECT loan_acct_id, balance*(base_rate+spread)/36500 AS daily_accrual, biz_date FROM loan_acct WHERE status IN ('NORMAL','OVERDUE_30')) src ON … WHEN NOT MATCHED THEN INSERT … ; UPDATE eod_exception SET status='AUTO_ABSORBED' WHERE ABS(diff_amount) < 10000 AND biz_date = TRUNC(SYSDATE)-1;",
+      "business_summary_ko": "EOD 배치가 정상·30일미만 연체 계좌의 일할 발생이자를 계산. ±1만원 미만 EOD_EXCEPTION은 'AUTO_ABSORBED'로 종결되며 별도 보고가 없음. SPPI 미통과 자산·외화대출 환율재평가는 미구현.",
+      "logic_branches": [
+        {
+          "condition": "status IN ('NORMAL','OVERDUE_30')",
+          "meaning_ko": "정상·30일미만 연체 계좌만 발생이자 대상",
+          "control_type": "Preventive",
+          "automation": "Automated"
+        },
+        {
+          "condition": "ABS(diff_amount) < 10000 → AUTO_ABSORBED",
+          "meaning_ko": "±1만원 미만 차이 자동 종결",
+          "control_type": "None",
+          "automation": "Automated"
+        }
+      ],
+      "actors": [
+        "결산팀(Settlement)",
+        "IT EOD 운영팀"
+      ],
+      "data_objects": [
+        "interest_accrual_line",
+        "loan_acct",
+        "eod_exception"
+      ],
+      "audit_red_flags": [
+        "AUTO_ABSORBED 누적 보고 부재",
+        "OVERDUE_30 초과 연체 처리 분기 미구현",
+        "SPPI 미통과 자산 미구현",
+        "외화대출 환율재평가 누락"
+      ],
+      "completeness_signal": "AT_RISK",
+      "sod_signal": "OK",
+      "manual_intervention_signal": "OK"
+    }
+  ],
+  "mermaid": "flowchart TB\n  subgraph CHAN[\"📱 채널\"]\n    H1[대출 약정 입력]:::manual\n  end\n  subgraph CORE[\"⚙ LOAN_CORE\"]\n    L1[(LOAN_ACCT)]:::automated\n    L2{SPREAD 한도?<br/>📎 RC-BNK-002}:::control\n    L3[\\본부장 무사유 RATE_HOLD 해제<br/>⚠ GAP\\]:::risk\n    L4[일배치 발생이자 계산]:::automated\n    L5[\\EOD_EXCEPTION 자동흡수<br/>📎 RC-BNK-001\\]:::risk\n  end\n  subgraph RISK[\"📊 IFRS9 / RISK\"]\n    R1[유효이자율(EIR<br/>📎 RC-BNK-003) 모형]:::control\n    R2[\\모형 파라미터 단독변경<br/>📎 RC-BNK-003\\]:::risk\n  end\n  subgraph ACCT[\"💰 결산 GL\"]\n    A1[월결산 INTEREST_ADJ]:::automated\n    A2[\\부도 충당금 단독 분개<br/>📎 RC-BNK-004\\]:::risk\n  end\n  H1 --> L1\n  L1 --> L2\n  L2 -->|이탈| L3\n  L2 -->|정상| L4\n  L4 --> L5\n  L4 --> R1\n  R2 --> R1\n  R1 --> A1\n  A1 --> A2\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "mermaid_raw": "flowchart TB\n  subgraph CHAN[\"📱 채널\"]\n    H1[대출 약정 입력]:::manual\n  end\n  subgraph CORE[\"⚙ LOAN_CORE\"]\n    L1[(LOAN_ACCT)]:::automated\n    L2{SPREAD 한도?}:::control\n    L3[\\본부장 무사유 RATE_HOLD 해제\\]:::risk\n    L4[일배치 발생이자 계산]:::automated\n    L5[\\EOD_EXCEPTION 자동흡수\\]:::risk\n  end\n  subgraph RISK[\"📊 IFRS9 / RISK\"]\n    R1[유효이자율(EIR) 모형]:::control\n    R2[\\모형 파라미터 단독변경\\]:::risk\n  end\n  subgraph ACCT[\"💰 결산 GL\"]\n    A1[월결산 INTEREST_ADJ]:::automated\n    A2[\\부도 충당금 단독 분개\\]:::risk\n  end\n  H1 --> L1\n  L1 --> L2\n  L2 -->|이탈| L3\n  L2 -->|정상| L4\n  L4 --> L5\n  L4 --> R1\n  R2 --> R1\n  R1 --> A1\n  A1 --> A2\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "rcm_mapping": {
+    "mappings": [
+      {
+        "node_id": "L2",
+        "node_label": "SPREAD 한도?",
+        "matched_control_id": "RC-BNK-002",
+        "matched_control_activity": "RATE_HOLD 자동 + 본부장 승인 해제",
+        "confidence": "High",
+        "rationale_ko": "스프레드 한도 통제와 일치",
+        "is_gap": false
+      },
+      {
+        "node_id": "L3",
+        "node_label": "본부장 무사유 RATE_HOLD 해제",
+        "matched_control_id": null,
+        "matched_control_activity": null,
+        "confidence": "Low",
+        "rationale_ko": "사유 입력·사후검토 통제가 RCM에 없음",
+        "is_gap": true
+      },
+      {
+        "node_id": "L5",
+        "node_label": "EOD_EXCEPTION 자동흡수",
+        "matched_control_id": "RC-BNK-001",
+        "matched_control_activity": "임계값·자동흡수 누적치 월별 보고",
+        "confidence": "High",
+        "rationale_ko": "자동흡수 누적 보고 통제와 매핑, 미운영 → 공백",
+        "is_gap": true
+      },
+      {
+        "node_id": "R1",
+        "node_label": "유효이자율(EIR) 모형",
+        "matched_control_id": "RC-BNK-003",
+        "matched_control_activity": "MODEL_PARAM 메이커-체커 + 외부감사 통보",
+        "confidence": "High",
+        "rationale_ko": "EIR 모형 통제 매핑",
+        "is_gap": false
+      },
+      {
+        "node_id": "R2",
+        "node_label": "모형 파라미터 단독변경",
+        "matched_control_id": "RC-BNK-003",
+        "matched_control_activity": "MODEL_PARAM 메이커-체커 + 외부감사 통보",
+        "confidence": "High",
+        "rationale_ko": "통제 정의 존재하나 미운영",
+        "is_gap": true
+      },
+      {
+        "node_id": "A2",
+        "node_label": "부도 충당금 단독 분개",
+        "matched_control_id": "RC-BNK-004",
+        "matched_control_activity": "월별 CFO 전수 검토 서명",
+        "confidence": "Medium",
+        "rationale_ko": "부도분개 검토 통제 매핑",
+        "is_gap": false
+      }
+    ],
+    "gap_summary_ko": "자동흡수 보고·SPREAD SoD·EIR 모형 변경 3대 공백."
+  },
+  "risks": {
+    "completeness": "🚨 **EOD_EXCEPTION 자동흡수 누적 영향 미보고**\n발견 근거: 인터뷰 §3-(A) — '익일 자동 흡수' 옵션.\n권고: 자동흡수 누적치를 월별 IT감사보고서로 가시화 — Re-perform.",
+    "sod": "🚨 **SPREAD 입력자 = RATE_HOLD 해제자**\n발견 근거: 인터뷰 §3-(B), §4-ⓓ.\n권고: 입력·승인 충돌역할 GRC 추가 — Inquiry + Inspection.",
+    "manual": "🚨 **EIR 모형 파라미터 단독 변경 + 외부감사 통보 부재**\n발견 근거: 인터뷰 §3-(C).\n권고: MODEL_PARAM_HIST 100% 인용 + 메이커-체커 즉시 — Inspection.",
+    "overall_severity": "High"
+  }
+}

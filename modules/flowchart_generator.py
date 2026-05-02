@@ -16,24 +16,38 @@ from .prompts import MERMAID_SYSTEM_PROMPT, MERMAID_USER_PROMPT
 from .vision_analyzer import LogicFinding
 
 
-# matches:    NODEID["label"]:::class      OR    NODEID(label):::class
-# We keep this tolerant — Mermaid syntax has many node-shape variants.
+# Mermaid v10+ node shapes — each shape gets a dedicated alternative so labels
+# with shape-specific characters (e.g. ``/`` or ``\``) don't bleed into the
+# closing delimiter.  Order matters: longer patterns first.
 _NODE_RE = re.compile(
     r"""
-    ^\s*
-    (?P<id>[A-Za-z][A-Za-z0-9_]*)          # node id
+    (?P<id>\b[A-Za-z][A-Za-z0-9_]*)        # node id
     \s*
-    (?P<open>[\[\(\{/\\]+)                  # opening bracket(s)
-    \s*"?(?P<label>[^"\]\}\)/\\]+?)"?\s*    # label
-    (?P<close>[\]\)\}/\\]+)                 # closing bracket(s)
-    (?:\s*:::\s*(?P<cls>[A-Za-z_]+))?       # optional class
-    \s*$
+    (?:
+        \[\(   \s*"?(?P<lbl_db>.+?)"?\s*    \)\]              # cylinder   [(...)]
+      | \[/    \s*"?(?P<lbl_tr>.+?)"?\s*    /\]               # trapezoid  [/.../]
+      | \[\\   \s*"?(?P<lbl_alt>.+?)"?\s*   \\\]              # trap-alt   [\...\]
+      | \[\[   \s*"?(?P<lbl_sub>.+?)"?\s*   \]\]              # subroutine [[...]]
+      | \(\(   \s*"?(?P<lbl_cir>.+?)"?\s*   \)\)              # circle     ((...))
+      | \{\{   \s*"?(?P<lbl_hex>.+?)"?\s*   \}\}              # hexagon    {{...}}
+      | \(     \s*"?(?P<lbl_par>[^"\)]+?)"?\s*  \)            # rounded    (...)
+      | \[     \s*"?(?P<lbl_sq>[^"\]]+?)"?\s*  \]             # square     [...]
+      | \{     \s*"?(?P<lbl_rh>[^"\}]+?)"?\s*  \}             # rhombus    {...}
+      | >      \s*"?(?P<lbl_asym>[^"\]]+?)"?\s*  \]           # asymmetric >...]
+    )
+    (?:\s*:::\s*(?P<cls>[A-Za-z_]+))?                          # optional class
     """,
-    re.VERBOSE | re.MULTILINE,
+    re.VERBOSE,
+)
+_LABEL_GROUPS = (
+    "lbl_db", "lbl_tr", "lbl_alt", "lbl_sub", "lbl_cir", "lbl_hex",
+    "lbl_par", "lbl_sq", "lbl_rh", "lbl_asym",
 )
 _SUBGRAPH_RE = re.compile(
     r'subgraph\s+(?P<id>[A-Za-z][A-Za-z0-9_]*)(?:\s*\[\s*"?(?P<label>[^"\]]+)"?\s*\])?'
 )
+_KEYWORDS = {"flowchart", "subgraph", "classdef", "class", "end",
+             "direction", "style", "linkstyle", "click"}
 
 
 @dataclass
@@ -82,7 +96,11 @@ def generate_mermaid(
 
 
 def parse_nodes(mermaid: str) -> List[FlowNode]:
-    """Walk the Mermaid source line-by-line, tracking the current subgraph."""
+    """Walk the Mermaid source line-by-line, tracking the current subgraph.
+
+    Supports all Mermaid v10 flowchart node shapes; labels with ``/`` or ``\\``
+    are tolerated because each shape has its own dedicated alternative.
+    """
     nodes: List[FlowNode] = []
     seen: set[str] = set()
     current_lane = ""
@@ -91,25 +109,37 @@ def parse_nodes(mermaid: str) -> List[FlowNode]:
         stripped = line.strip()
         if not stripped:
             continue
-        sg = _SUBGRAPH_RE.search(stripped)
-        if sg:
-            current_lane = sg.group("label") or sg.group("id")
+
+        # Subgraph header / end
+        if stripped.lower().startswith("subgraph"):
+            sg = _SUBGRAPH_RE.search(stripped)
+            if sg:
+                current_lane = sg.group("label") or sg.group("id")
             continue
         if stripped.lower() == "end":
             current_lane = ""
             continue
+        # Skip Mermaid syntax lines
+        first_word = stripped.split(None, 1)[0].lower()
+        if first_word in _KEYWORDS:
+            continue
+
         for match in _NODE_RE.finditer(line):
             node_id = match.group("id")
-            if node_id in seen:
+            if node_id in seen or node_id.lower() in _KEYWORDS:
                 continue
-            # Filter Mermaid keywords that look like ids
-            if node_id.lower() in {"flowchart", "subgraph", "classdef", "class", "end", "direction"}:
+            # Pick whichever label group actually matched
+            label = next(
+                (match.group(g) for g in _LABEL_GROUPS if match.group(g) is not None),
+                "",
+            ).strip()
+            if not label:
                 continue
             seen.add(node_id)
             nodes.append(
                 FlowNode(
                     node_id=node_id,
-                    label=match.group("label").strip(),
+                    label=label,
                     lane=current_lane,
                     cls=(match.group("cls") or "").strip(),
                 )

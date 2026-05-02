@@ -1,19 +1,43 @@
-control_id,process,control_objective,risk_description,control_activity,control_type,frequency,automation
-RC-PAY-001,Payment Initiation,결제 요청 정확성,앱이 잘못된 금액·통화·상품ID를 PG에 전송할 수 있다,결제 요청 시 OMS가 상품마스터(가격/통화) 자동 검증 후 PG로 전달,Preventive,Per Transaction,Automated
-RC-PAY-002,PG Callback Validation,결제 콜백 위변조 방지,PG 웹훅이 위·변조되어 실결제 없이 쿠키가 충전될 수 있다,PG 콜백 서명(HMAC) 자동 검증 + 거래ID 중복 차단,Preventive,Per Transaction,Automated
-RC-PAY-003,PG-Ledger Reconciliation,인터페이스 완전성,PG 결제와 COOKIE_LEDGER 충전이 일치하지 않을 수 있다,PG 원장과 COOKIE_LEDGER 일별 자동 대사 + 차이 PG_RECON_EXCEPTION 적재 후 D+1 해소,Detective,Daily,IT-Dependent Manual
-RC-PAY-004,Recon Threshold Review,자동 클리어 임계값 적정성,±1만원 미만 차이 자동 종결 누적이 수익에 유의 영향,자동 클리어 임계값을 분기마다 재무팀이 합리성 재평가,Detective,Quarterly,IT-Dependent Manual
-RC-CON-001,Cookie Balance Validation,잔액 검증,잔액 < 회차 단가인데도 잠금해제가 통과될 수 있다,"차감 트랜잭션이 BEFORE-IMAGE 잔액을 LOCK 후 검증, 부족 시 BLOCK",Preventive,Per Transaction,Automated
-RC-CON-002,Negative Balance Sweep,음수잔액 청소,프로모션 음수 잔액이 마감까지 누적되어 매출 누락,일배치가 음수 잔액 계정을 식별·정산하여 REVENUE_LINE 보정,Detective,Daily,Automated
-RC-CON-003,Episode Unlock Idempotency,중복 차감 방지,네트워크 재시도로 회차 차감이 중복될 수 있다,Idempotency-Key 기반 멱등 처리 + 중복 차감 자동 환원,Preventive,Per Transaction,Automated
-RC-SET-001,Coupon/Promo Calculation,쿠폰·프로모션 계산 정확성,쿠폰·무료회차 차감이 누락되어 NET_REVENUE 과대 인식,월별 정산 리포트 생성 후 샘플 100건 재계산 검증,Detective,Monthly,IT-Dependent Manual
-RC-SET-002,Promo Rule Maker-Checker,프로모션 룰 변경 통제,정산팀이 프로모션 파라미터를 임의 변경해 매출 왜곡,PROMO_RULE 변경은 메이커-체커 2단 승인 + 변경 로그 자동 보존,Preventive,Per Change,IT-Dependent Manual
-RC-SET-003,Author Revenue Share Calc,작가 RS 계산 정확성,RS 계산식 오류로 작가 정산·매출차감이 부정확,월말 RS 계산 결과 대비 SQL 재계산 비교 (CFO 서명),Detective,Monthly,IT-Dependent Manual
-RC-IFC-001,Interface Run Monitoring,인터페이스 가동 모니터링,PG→Ledger / Ledger→Revenue / Revenue→GL 인터페이스 누락,IF_LOG_HEADER 기준 일배치 가동 여부와 RowCount를 IT운영팀이 매일 점검,Detective,Daily,IT-Dependent Manual
-RC-IFC-002,Interface Exception Resolution,인터페이스 예외 해소,예외 큐에 적체된 트랜잭션이 매출 누락으로 이어짐,IF_LOG_EXCEPTION을 D+1 영업일 내 0건으로 해소 (실패 시 보고),Detective,Daily,IT-Dependent Manual
-RC-REF-001,Refund Authorization,환불 권한 통제,콜센터장이 본인 ID로 직접 환불 처리,"8일 이상 환불은 CS매니저 승인 필수, 자기승인 차단 룰셋 적용",Preventive,Per Transaction,Automated
-RC-REF-002,Refund Trend Review,환불 이상치 검토,VIP 사유 환불의 사후 검토 부재,월별 사용자/사유별 환불 이상치 보고서를 CFO가 검토,Detective,Monthly,IT-Dependent Manual
-RC-ACC-001,Manual JE Review,수동분개 검토,재무 담당자가 매출 cut-off 조정을 단독 등록·게시,매출 관련 manual JE를 매월 CFO가 전수 리뷰 및 서명,Detective,Monthly,IT-Dependent Manual
-RC-ACC-002,Revenue Cut-off,기간 귀속,월말 매출 인식 cut-off 오류,월말 ±3영업일 매출 전표를 출하·소비 증빙과 대사,Detective,Monthly,IT-Dependent Manual
-RC-SOD-001,Promo SoD,프로모션 등록·승인 분리,동일 사용자가 프로모션 등록과 승인을 동시 보유,GRC 룰셋이 프로모션 등록·승인 충돌역할을 분기마다 감지·보고,Detective,Quarterly,Automated
-RC-SOD-002,CS Self-Approval Block,자기승인 차단,콜센터장 본인 환불 자기승인,역할기반 접근통제(RBAC)로 자기 트랜잭션 자기승인 시스템 차단,Preventive,Per Transaction,Automated
+control_id,industry,process,control_objective,risk_description,control_activity,control_type,frequency,automation
+RC-PAY-001,Platform,Payment Initiation,결제 요청 정확성,앱이 잘못된 금액·통화·상품ID를 PG에 전송,결제 요청 시 OMS가 상품마스터 자동 검증,Preventive,Per Transaction,Automated
+RC-PAY-003,Platform,PG-Ledger Recon,인터페이스 완전성,PG 결제와 COOKIE_LEDGER 충전이 불일치,일별 자동대사 + PG_RECON_EXCEPTION 적재,Detective,Daily,IT-Dependent Manual
+RC-CON-001,Platform,Balance Validation,잔액 검증,잠금해제 시 잔액 부족 미검증,"BEFORE-IMAGE 잔액 LOCK 후 검증, 부족 시 BLOCK",Preventive,Per Transaction,Automated
+RC-SET-002,Platform,Promo Maker-Checker,프로모션 룰 변경 통제,정산팀 임의 변경,PROMO_RULE 메이커-체커 2단 + 변경로그,Preventive,Per Change,IT-Dependent Manual
+RC-SOD-001,Platform,Promo SoD,등록·승인 분리,프로모션 등록자=승인자,GRC 룰셋이 충돌역할 분기 감지,Detective,Quarterly,Automated
+RC-ACC-001,Cross-Industry,Manual JE Review,수동분개 검토,매출 cut-off 단독 등록·게시,월별 CFO 전수 리뷰 + 서명,Detective,Monthly,IT-Dependent Manual
+RC-MFG-001,Manufacturing,EDI Integrity,EDI 메시지 무결성,VDA 메시지 위·변조,PartnerID/일련번호/체크섬 자동검증,Preventive,Per Transaction,Automated
+RC-MFG-002,Manufacturing,Pricing Validation,단가 검증,APL 단가 ±0.5% 범위 이탈,PRICE_HOLD 자동전환 + 본부장 승인 해제,Preventive,Per Transaction,IT-Dependent Manual
+RC-MFG-003,Manufacturing,Retro Pricing Review,단가 소급정산,RETRO_RULE 임의 변경,메이커-체커 2단 + RETRO_ADJ 검증,Detective,Monthly,IT-Dependent Manual
+RC-MFG-004,Manufacturing,Shipment Match,출하-주문 매칭,DO와 SO 차이,"WMS 자동 매칭, 차이 시 출하 차단",Preventive,Per Transaction,Automated
+RC-RET-001,Retail,POS Recon,POS 일마감 대사,점포 보정으로 차이 임의 종결,본사가 점포별 보정값을 일별 검토 서명,Detective,Daily,IT-Dependent Manual
+RC-RET-002,Retail,Promo Validation,쿠폰 검증,직원할인 쿠폰 타인 결제 허용,쿠폰별 결제수단·소유자 매칭 룰 강제,Preventive,Per Transaction,Automated
+RC-RET-003,Retail,Marketplace Fee,수수료율 통제,COMMISSION_RATE 임의 변경,수수료율 변경 메이커-체커 + 분기 재평가,Preventive,Per Change,IT-Dependent Manual
+RC-RET-004,Retail,Shrinkage JE,폐기·도난 분개,점포장 단독 등록,본부 회계가 임계값 초과건 사후 검토 서명,Detective,Monthly,IT-Dependent Manual
+RC-ECM-001,E-commerce,Gross/Net Classification,1P/3P 분류,INV_OWNER_FLAG 임의 토글,분류 변경 메이커-체커 + 시점 통제,Preventive,Per Change,IT-Dependent Manual
+RC-ECM-002,E-commerce,Escrow Idempotency,중복 인식 방지,PARTIAL_REFUND 멱등 우회,전 상태경로 멱등키 검증 강제,Preventive,Per Transaction,Automated
+RC-ECM-003,E-commerce,Seller Fee Rate,셀러 수수료율 통제,SELLER_FEE_RATE 단독 변경,변경 메이커-체커 + 분기 재평가,Preventive,Per Change,IT-Dependent Manual
+RC-ECM-004,E-commerce,Auto-Confirm Threshold,자동확정 임계 적정성,7일 자동확정 누적 효과,임계값 분기 합리성 재평가,Detective,Quarterly,IT-Dependent Manual
+RC-BNK-001,Banking,Daily Accrual Recon,일할 발생이자 대사,EOD_EXCEPTION 자동흡수,임계값·자동흡수 누적치 월별 보고,Detective,Monthly,IT-Dependent Manual
+RC-BNK-002,Banking,Spread Validation,스프레드 한도,SPREAD 한도 외 입력,RATE_HOLD 자동 + 본부장 승인 해제,Preventive,Per Transaction,IT-Dependent Manual
+RC-BNK-003,Banking,IFRS9 Model Param,유효이자율 모형,EIR 파라미터 임의 변경,MODEL_PARAM 메이커-체커 + 외부감사 통보,Preventive,Per Change,IT-Dependent Manual
+RC-BNK-004,Banking,Default JE,부도 충당금 분개,결산팀 단독 등록,월별 CFO 전수 검토 서명,Detective,Monthly,IT-Dependent Manual
+RC-INS-001,Insurance,Coverage Unit Calc,Coverage Unit 계산,ACTUARIAL_RULE 임의 변경,변경 메이커-체커 + 외부감사 통보,Preventive,Per Change,IT-Dependent Manual
+RC-INS-002,Insurance,Premium Recon,보험료 수령 대사,30/60일 유예 보험료 누락,유예 만료건 일별 모니터링 + 경고,Detective,Daily,IT-Dependent Manual
+RC-INS-003,Insurance,CSM Allocation,CSM 상각 산출,Locked-in vs Current 임의 선택,가정 변경 사유·증빙 첨부 강제 + 검토,Preventive,Per Change,IT-Dependent Manual
+RC-INS-004,Insurance,Onerous JE,Onerous 전환 분개,보험계리팀 단독 등록,월별 CFO 전수 검토 서명,Detective,Monthly,IT-Dependent Manual
+RC-SAS-001,SaaS,PO Allocation,수행의무 배분,Custom SSP 임의 입력,할인거래 SSP 변경 메이커-체커,Preventive,Per Order,IT-Dependent Manual
+RC-SAS-002,SaaS,Usage Meter Recon,사용량 메터 대사,인스트루멘테이션 누락,Backfill 절차 + 미계측 호 분기 점검,Detective,Quarterly,IT-Dependent Manual
+RC-SAS-003,SaaS,Contract Mod Type,계약변경 분류,Catch-up vs Prospective 단독 결정,변경유형 분류 메이커-체커,Preventive,Per Change,IT-Dependent Manual
+RC-SAS-004,SaaS,Catch-up JE,Catch-up 분개,RevOps 단독 등록,월별 CFO 전수 검토 서명,Detective,Monthly,IT-Dependent Manual
+RC-TEL-001,Telecom,CDR Loss Recon,CDR 누락 대사,메디에이션 누락 호 식별 부재,시그널링 vs 빌링 교차 대사 추가,Detective,Daily,IT-Dependent Manual
+RC-TEL-002,Telecom,Rate Card Force-publish,요금제 강제배포,본부장 단독 Force-publish,회귀 차이 시 본부장+재무 2단 승인,Preventive,Per Change,IT-Dependent Manual
+RC-TEL-003,Telecom,Bundle SSP,번들 SSP 마스터,정산팀 단독 변경,SSP 변경 메이커-체커,Preventive,Per Change,IT-Dependent Manual
+RC-TEL-004,Telecom,Interconnect JE,인터커넥트 정산 분개,정산팀 단독 등록,월별 본부장+CFO 전수 검토,Detective,Monthly,IT-Dependent Manual
+RC-EPC-001,Construction,Cost Posting,원가 입력 검증,Estimate Accrual 임계값 누적,추정-실제 차이 일별 모니터링 + 경고,Detective,Daily,IT-Dependent Manual
+RC-EPC-002,Construction,EAC Trigger,EAC 변경 워크플로,Minor 옵션 우회,Minor 토글 사용 시 PMO+재무 2단 승인,Preventive,Per Change,IT-Dependent Manual
+RC-EPC-003,Construction,POC Catch-up Validation,VO 누적 매출 재계산 검증,사업관리 단독 검토,회계팀이 VO_ADJ 라인 재계산 검증 서명,Detective,Per VO,IT-Dependent Manual
+RC-EPC-004,Construction,Onerous JE,Onerous 충당금 분개,재무팀 단독 등록,월별 CFO 전수 검토 서명,Detective,Monthly,IT-Dependent Manual
+RC-PHA-001,Pharma,Milestone Trigger,마일스톤 증빙,EX_TRIGGER 증빙 없는 등록,예외 등록 시 R&D재무·CFO 2단 승인,Preventive,Per Trigger,IT-Dependent Manual
+RC-PHA-002,Pharma,Royalty Estimate,추정 정산,추정 모형 임의 변경,추정 모형 변경 메이커-체커,Preventive,Per Change,IT-Dependent Manual
+RC-PHA-003,Pharma,Variable Constraint,가변대가 제약,Constraint Ratio 단독 결정,마일스톤별 비율 메이커-체커,Preventive,Per Milestone,IT-Dependent Manual
+RC-PHA-004,Pharma,Clawback JE,클로백·차이정산 분개,R&D재무팀 단독,월별 CFO 전수 검토 서명,Detective,Monthly,IT-Dependent Manual

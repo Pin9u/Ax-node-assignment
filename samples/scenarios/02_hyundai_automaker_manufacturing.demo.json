@@ -1,0 +1,116 @@
+{
+  "vision_findings": [
+    {
+      "filename": "02_manufacturing__retro_pricing.png",
+      "artifact_type": "SQL_QUERY",
+      "title_ko": "월말 RETRO 단가 소급 정산 쿼리",
+      "raw_extraction": "WITH retro_lines AS (SELECT apl.part_no, so.so_line_id, so.shipped_qty, apl.unit_price AS apl_price, so.invoiced_price AS billed_price FROM apl_master apl JOIN so_line so ON so.part_no = apl.part_no WHERE so.ship_month = TO_CHAR(SYSDATE,'YYYYMM')-1 AND ABS(so.invoiced_price - apl.unit_price)/apl.unit_price <= 0.005) SELECT part_no, SUM(shipped_qty * (apl_price - billed_price)) AS retro_adj FROM retro_lines GROUP BY part_no;",
+      "business_summary_ko": "월말 OEM 단가 소급 정산을 자동 계산. 단가 차이가 ±0.5% 이하인 SO만 RETRO 대상으로 포함되며, 라인스톱 클레임·VO 변경계약 단가 소급은 미구현.",
+      "logic_branches": [
+        {
+          "condition": "ABS(invoiced_price - unit_price)/unit_price <= 0.005",
+          "meaning_ko": "단가 차이 0.5% 이하 SO만 RETRO 정산",
+          "control_type": "Preventive",
+          "automation": "Automated"
+        },
+        {
+          "condition": "ship_month = TO_CHAR(SYSDATE,'YYYYMM')-1",
+          "meaning_ko": "직전월 출하분만 대상",
+          "control_type": "Preventive",
+          "automation": "Automated"
+        }
+      ],
+      "actors": [
+        "영업관리팀(Pricing Ops)"
+      ],
+      "data_objects": [
+        "apl_master",
+        "so_line"
+      ],
+      "audit_red_flags": [
+        "라인스톱 클레임 차감 미구현",
+        "VO 변경계약 단가 소급 검증 부재",
+        "0.5% 임계값과 PRICE_HOLD 임계값 동일 — 검증 통과한 건만 RETRO 대상"
+      ],
+      "completeness_signal": "AT_RISK",
+      "sod_signal": "OK",
+      "manual_intervention_signal": "AT_RISK"
+    }
+  ],
+  "mermaid": "flowchart TB\n  subgraph OEM[\"🏢 OEM (외부)\"]\n    O1[/Forecast & JIT call-off<br/>📎 RC-MFG-001/]:::manual\n  end\n  subgraph ERP[\"⚙ ERP S/4HANA\"]\n    E1[SO 자동 변환]:::automated\n    E2{단가 ±0.5% 이탈?<br/>📎 RC-MFG-002}:::control\n    E3[\\PRICE_HOLD 본부장 무사유 해제<br/>⚠ GAP\\]:::risk\n    E4[월말 RETRO 단가 소급<br/>📎 RC-MFG-003]:::control\n  end\n  subgraph OPS[\"🏭 MES / WMS\"]\n    M1[양산 시퀀스]:::automated\n    M2[ASN 발행 + 출하 트리거<br/>📎 RC-MFG-004]:::automated\n  end\n  subgraph FIN[\"💰 재무·영업관리\"]\n    F1[\\RETRO_RULE 단독 변경<br/>📎 RC-MFG-003\\]:::risk\n    F2[\\PPV 정산 단독 분개<br/>📎 RC-ACC-001\\]:::risk\n  end\n  O1 -->|EDI VDA4905| E1\n  E1 --> E2\n  E2 -->|이탈| E3\n  E2 -->|정상| M1\n  M1 --> M2\n  M2 -->|SHIP_OUT| E4\n  F1 --> E4\n  E4 --> F2\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "mermaid_raw": "flowchart TB\n  subgraph OEM[\"🏢 OEM (외부)\"]\n    O1[/Forecast & JIT call-off/]:::manual\n  end\n  subgraph ERP[\"⚙ ERP S/4HANA\"]\n    E1[SO 자동 변환]:::automated\n    E2{단가 ±0.5% 이탈?}:::control\n    E3[\\PRICE_HOLD 본부장 무사유 해제\\]:::risk\n    E4[월말 RETRO 단가 소급]:::control\n  end\n  subgraph OPS[\"🏭 MES / WMS\"]\n    M1[양산 시퀀스]:::automated\n    M2[ASN 발행 + 출하 트리거]:::automated\n  end\n  subgraph FIN[\"💰 재무·영업관리\"]\n    F1[\\RETRO_RULE 단독 변경\\]:::risk\n    F2[\\PPV 정산 단독 분개\\]:::risk\n  end\n  O1 -->|EDI VDA4905| E1\n  E1 --> E2\n  E2 -->|이탈| E3\n  E2 -->|정상| M1\n  M1 --> M2\n  M2 -->|SHIP_OUT| E4\n  F1 --> E4\n  E4 --> F2\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "rcm_mapping": {
+    "mappings": [
+      {
+        "node_id": "O1",
+        "node_label": "Forecast & JIT call-off",
+        "matched_control_id": "RC-MFG-001",
+        "matched_control_activity": "PartnerID/일련번호/체크섬 자동검증",
+        "confidence": "High",
+        "rationale_ko": "EDI 메시지 무결성 통제와 매핑",
+        "is_gap": false
+      },
+      {
+        "node_id": "E2",
+        "node_label": "단가 ±0.5% 이탈?",
+        "matched_control_id": "RC-MFG-002",
+        "matched_control_activity": "PRICE_HOLD 자동전환 + 본부장 승인 해제",
+        "confidence": "High",
+        "rationale_ko": "단가 검증 통제와 일치",
+        "is_gap": false
+      },
+      {
+        "node_id": "E3",
+        "node_label": "PRICE_HOLD 본부장 무사유 해제",
+        "matched_control_id": null,
+        "matched_control_activity": null,
+        "confidence": "Low",
+        "rationale_ko": "사유 입력·사후검토 통제가 RCM에 없음",
+        "is_gap": true
+      },
+      {
+        "node_id": "E4",
+        "node_label": "월말 RETRO 단가 소급",
+        "matched_control_id": "RC-MFG-003",
+        "matched_control_activity": "메이커-체커 2단 + RETRO_ADJ 검증",
+        "confidence": "Medium",
+        "rationale_ko": "RETRO 정산 통제와 매핑",
+        "is_gap": false
+      },
+      {
+        "node_id": "F1",
+        "node_label": "RETRO_RULE 단독 변경",
+        "matched_control_id": "RC-MFG-003",
+        "matched_control_activity": "메이커-체커 2단 + RETRO_ADJ 검증",
+        "confidence": "Medium",
+        "rationale_ko": "통제 정의 존재하나 실제 미운영",
+        "is_gap": true
+      },
+      {
+        "node_id": "M2",
+        "node_label": "ASN 발행 + 출하 트리거",
+        "matched_control_id": "RC-MFG-004",
+        "matched_control_activity": "WMS 자동 매칭, 차이 시 출하 차단",
+        "confidence": "High",
+        "rationale_ko": "출하-주문 매칭 통제와 매핑",
+        "is_gap": false
+      },
+      {
+        "node_id": "F2",
+        "node_label": "PPV 정산 단독 분개",
+        "matched_control_id": "RC-ACC-001",
+        "matched_control_activity": "월별 CFO 전수 리뷰 + 서명",
+        "confidence": "Medium",
+        "rationale_ko": "수동분개 검토 통제 매핑",
+        "is_gap": false
+      }
+    ],
+    "gap_summary_ko": "PRICE_HOLD 무사유 해제·RETRO_RULE 단독 변경·EDI_EXCEPTION 모니터링 3대 공백."
+  },
+  "risks": {
+    "completeness": "🚨 **EDI_EXCEPTION 사후 모니터링 부재**\n발견 근거: 인터뷰 §3-(A) — IT운영팀 수동 재처리만 있고 재무 모니터링 부재.\n권고: 일별 EDI_EXCEPTION 잔존건에 대한 재무 sign-off 절차 — Re-perform.",
+    "sod": "🚨 **APL 단가 변경자 = PRICE_HOLD 해제자 동일**\n발견 근거: 인터뷰 §4-ⓓ — 영업관리팀 시니어 2명 동시 권한 보유.\n권고: GRC 룰셋에 충돌역할 추가 후 분기리뷰 — Inquiry + Inspection.",
+    "manual": "🚨 **PRICE_HOLD 무사유 해제 + RETRO_RULE 단독변경**\n발견 근거: 인터뷰 §3-(B), §3-(C).\n권고: 사유 입력 강제 + RETRO_RULE 메이커-체커 즉시 가동 — Inspection.",
+    "overall_severity": "High"
+  }
+}

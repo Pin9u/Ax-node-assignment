@@ -1,0 +1,61 @@
+{
+  "vision_findings": [],
+  "mermaid": "flowchart TB\n  subgraph NET[\"📡 NETWORK / Mediation\"]\n    N1[(CDR 수집)]:::automated\n    N2[\\시그널링 장애 누락 호<br/>📎 RC-TEL-001\\]:::risk\n  end\n  subgraph RATE[\"⚙ RATING / BILLING\"]\n    R1[레이팅 엔진 EOD]:::automated\n    R2{RATE_CARD 회귀 ±5%?<br/>📎 RC-TEL-002}:::control\n    R3[\\본부장 Force-publish<br/>📎 RC-TEL-002\\]:::risk\n    R4[BILLING_RUN 인보이스]:::automated\n    R5[\\번들 SSP 단독 변경<br/>📎 RC-TEL-003\\]:::risk\n  end\n  subgraph B2B[\"🏢 B2B / 5G IoT\"]\n    I1[5G 회선 단가 청구]:::automated\n  end\n  subgraph ACCT[\"💰 ERP GL\"]\n    A1[월결산 매출 전기]:::automated\n    A2[\\인터커넥트 단독 분개<br/>📎 RC-TEL-004\\]:::risk\n  end\n  N1 --> R1\n  N2 --> N1\n  R1 --> R2\n  R2 -->|차이| R3\n  R2 -->|정상| R4\n  R5 --> R4\n  I1 --> R4\n  R4 --> A1\n  A1 --> A2\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "mermaid_raw": "flowchart TB\n  subgraph NET[\"📡 NETWORK / Mediation\"]\n    N1[(CDR 수집)]:::automated\n    N2[\\시그널링 장애 누락 호\\]:::risk\n  end\n  subgraph RATE[\"⚙ RATING / BILLING\"]\n    R1[레이팅 엔진 EOD]:::automated\n    R2{RATE_CARD 회귀 ±5%?}:::control\n    R3[\\본부장 Force-publish\\]:::risk\n    R4[BILLING_RUN 인보이스]:::automated\n    R5[\\번들 SSP 단독 변경\\]:::risk\n  end\n  subgraph B2B[\"🏢 B2B / 5G IoT\"]\n    I1[5G 회선 단가 청구]:::automated\n  end\n  subgraph ACCT[\"💰 ERP GL\"]\n    A1[월결산 매출 전기]:::automated\n    A2[\\인터커넥트 단독 분개\\]:::risk\n  end\n  N1 --> R1\n  N2 --> N1\n  R1 --> R2\n  R2 -->|차이| R3\n  R2 -->|정상| R4\n  R5 --> R4\n  I1 --> R4\n  R4 --> A1\n  A1 --> A2\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "rcm_mapping": {
+    "mappings": [
+      {
+        "node_id": "N2",
+        "node_label": "시그널링 장애 누락 호",
+        "matched_control_id": "RC-TEL-001",
+        "matched_control_activity": "시그널링 vs 빌링 교차 대사 추가",
+        "confidence": "High",
+        "rationale_ko": "CDR 누락 식별 통제 — 미운영",
+        "is_gap": true
+      },
+      {
+        "node_id": "R2",
+        "node_label": "RATE_CARD 회귀 ±5%?",
+        "matched_control_id": "RC-TEL-002",
+        "matched_control_activity": "회귀 차이 시 본부장+재무 2단 승인",
+        "confidence": "High",
+        "rationale_ko": "요금제 변경 통제 매핑",
+        "is_gap": false
+      },
+      {
+        "node_id": "R3",
+        "node_label": "본부장 Force-publish",
+        "matched_control_id": "RC-TEL-002",
+        "matched_control_activity": "회귀 차이 시 본부장+재무 2단 승인",
+        "confidence": "Medium",
+        "rationale_ko": "통제 정의 존재하나 단독승인 잔존",
+        "is_gap": true
+      },
+      {
+        "node_id": "R5",
+        "node_label": "번들 SSP 단독 변경",
+        "matched_control_id": "RC-TEL-003",
+        "matched_control_activity": "SSP 변경 메이커-체커",
+        "confidence": "High",
+        "rationale_ko": "SSP 변경 통제 매핑 — 미운영",
+        "is_gap": true
+      },
+      {
+        "node_id": "A2",
+        "node_label": "인터커넥트 단독 분개",
+        "matched_control_id": "RC-TEL-004",
+        "matched_control_activity": "월별 본부장+CFO 전수 검토",
+        "confidence": "Medium",
+        "rationale_ko": "인터커넥트 분개 통제 매핑",
+        "is_gap": false
+      }
+    ],
+    "gap_summary_ko": "CDR 누락·Force-publish 단독·번들 SSP 단독변경 3대 공백."
+  },
+  "risks": {
+    "completeness": "🚨 **시그널링 장애 누락 호 식별 부재**\n발견 근거: 인터뷰 §3-(A).\n권고: 시그널링 vs 빌링 교차 대사 RC-TEL-001 즉시 가동 — Re-perform.",
+    "sod": "🚨 **RATE_CARD 등록자 = Force-publish 승인자 동일 (시니어 3명)**\n발견 근거: 인터뷰 §4-ⓓ.\n권고: 본부장+재무 2단 승인 강제 + 분기 GRC.",
+    "manual": "🚨 **번들 SSP·인터커넥트 분개 단독**\n발견 근거: 인터뷰 §3-(C), §4-ⓒ.\n권고: SSP 메이커-체커 즉시 + 인터커넥트 CFO 100% 인용.",
+    "overall_severity": "High"
+  }
+}

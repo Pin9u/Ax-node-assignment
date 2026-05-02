@@ -1,0 +1,50 @@
+[가상 고객사 — "QuickPang" (오픈마켓 + 자체 풀필먼트 E-commerce) / FY2026 Walkthrough]
+
+면담 대상   : 셀러플랫폼팀 정 매니저, 정산팀 김 책임, 풀필먼트팀 이 책임, 재무팀 박 차장
+일시        : 2026-04-25
+대상 프로세스: 오픈마켓 GMV 매출 인식 + 셀러 정산 (Net Revenue / Gross Revenue 혼합)
+
+▣ 1단계 — 사건 흐름 (Events)
+  사건 1) 셀러가 셀러센터에서 상품 등록 → 노출 시작.
+  사건 2) 구매자가 결제 → PG 승인 → 주문 ORDER_HEADER 생성. 결제금액은 ESCROW로 보관.
+  사건 3) 셀러 자체 출고(3P) 또는 자체풀필먼트(1P) 출고 → 구매확정/자동확정(7일).
+  사건 4) 구매확정 시점에 매출 인식 트리거 발생.
+          - 1P (자가 매입재고 판매): Gross Revenue 인식 (전액 매출)
+          - 3P (오픈마켓 중개): Net Revenue 인식 (수수료만 매출)
+  사건 5) 정산팀이 D+15일에 셀러별 GMV - 수수료 - 환불 - 광고비 - 페널티를 차감하여
+          셀러 송금. 부가세는 별도 처리.
+
+▣ 2단계 — Swimlane
+  • 주체 A (BUYER)         : 모바일 앱·웹 (외부)
+  • 주체 B (SELLER CENTER) : 셀러 어드민 (외부 사용자)
+  • 주체 C (CORE)          : OMS / Settlement Hub / Promo Engine / Escrow
+  • 주체 D (FULFILLMENT)   : WMS / 풀필먼트 인터페이스
+  • 주체 E (ACCT)          : ERP GL / 셀러 AP
+
+▣ 3단계 — 통제점(Control Point)
+  (A) ITAC — Gross vs Net Revenue Classification
+      상품 카테고리·셀러 계약유형(1P/3P)·재고 소유권 플래그(INV_OWNER_FLAG) 3개 변수의
+      조합으로 매출 인식 방식이 자동 결정된다. 다만 셀러플랫폼팀이 INV_OWNER_FLAG 를
+      셀러센터 GUI에서 토글 가능하며, 토글 시점부터 신규 매출의 인식 방식이 변경된다.
+      재무팀 사후 검토는 분기 1회로 결정 후 실제 거래 시점 사이에 시차 위험.
+  (B) ITAC — Escrow Release Validation
+      구매확정·자동확정 트리거가 ESCROW에서 매출 트리거로 변환될 때, 환불·반품·취소
+      상태가 동시에 변경되지 않으면 매출 중복 인식 가능. 멱등키(Idempotency) 검증
+      로직이 적용되어 있으나 소수의 'STATUS=PARTIAL_REFUND' 경로에서는 검증이 우회된다는
+      점이 SRE 인시던트 보고서에서 확인.
+  (C) IPE — Settlement Calculation
+      셀러 정산 리포트는 GMV - 수수료(SELLER_FEE_RATE) - 환불 - 페널티 - 광고비 를
+      합산. SELLER_FEE_RATE 는 셀러플랫폼팀이 셀러별로 GUI 변경 가능 (메이커-체커 부재).
+
+▣ 4단계 — 시각화 보조
+  ⓐ 인터페이스 — PG→OMS(실시간), OMS→Escrow(실시간), Escrow→GL(분배치),
+     Settlement→AP(D+15일).
+  ⓑ 광고비 매출 — 광고 노출 매출은 별도 모듈에서 일배치 인식.
+  ⓒ 수기 분개 — 셀러 페널티 환원 / 정산 차이 보정 분개는 정산팀이 단독 등록.
+  ⓓ SoD — 셀러플랫폼팀 시니어 4명에게 INV_OWNER_FLAG 변경 권한과 SELLER_FEE_RATE
+     변경 권한이 동시에 부여.
+
+▣ 핵심 리스크 신호
+  - Completeness: PARTIAL_REFUND 경로의 멱등 우회.
+  - SoD: 1P/3P 분류·수수료율 변경자와 정산 승인자 동일.
+  - Manual: ESCROW 만료 자동확정 임계값 (7일) 적정성 미평가.

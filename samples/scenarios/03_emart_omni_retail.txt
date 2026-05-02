@@ -1,0 +1,46 @@
+[가상 고객사 — "이마트라이브" (대형마트 옴니채널) / FY2026 매출 프로세스 Walkthrough]
+
+면담 대상   : 점포운영팀 송 점장, 온라인운영팀 김 매니저, 정산팀 이 책임, 재무팀 박 차장
+일시        : 2026-04-24
+대상 프로세스: 오프라인 POS + 온라인몰 + 픽업 통합 매출 (B2C / Omni-channel)
+
+▣ 1단계 — 사건 흐름 (Events)
+  사건 1) 고객이 점포 POS에서 결제하거나 온라인몰에서 주문·결제를 완료.
+  사건 2) POS가 거래 단위로 SALES_TXN 메시지를 본사 데이터센터로 실시간 송신
+          (배치 보완 — 통신장애 시 점포 로컬 큐에 적재 후 재송).
+  사건 3) 멤버십 적립·쿠폰 차감·SmilePay 등 결제수단 분배가 PROMO_ENGINE에서 자동 계산.
+  사건 4) 일배치가 점포별 / 채널별 매출을 GL_REVENUE_LINE 으로 집계 → ERP 전기.
+  사건 5) 셀러 입점 카테고리(예: Fresh Marketplace)는 셀러 정산 모듈이 GMV-Net Revenue
+          를 산출해 셀러 정산을 D+15일 진행.
+
+▣ 2단계 — Swimlane
+  • 주체 A (FRONT-OFFLINE) : 점포 POS / 픽업데스크
+  • 주체 B (FRONT-ONLINE)  : 온라인몰 / 모바일 앱
+  • 주체 C (BACK)          : OMS / Promo Engine / Loyalty / Settlement Hub
+  • 주체 D (ACCT)          : ERP GL
+
+▣ 3단계 — 통제점(Control Point)
+  (A) ITAC — POS Reconciliation
+      점포별 일마감(End-of-Day) 시 POS 거래 합계와 본사 SALES_TXN 수신 합계를 자동대사.
+      차이 발생 시 POS_RECON_EXCEPTION에 적재. 단, 점포장이 'Adjustment' 화면에서 수기
+      보정값을 입력하여 차이를 0으로 닫을 수 있고 별도 본사 검토 절차는 부재.
+  (B) ITAC — Coupon / Promo Validation
+      쿠폰 적용 시 시스템이 발행한도·중복사용·만료일을 자동검증. 단, '직원할인 쿠폰' 의
+      경우 직원 본인 카드 결제만 허용해야 하지만 시스템 룰이 누락되어 타인 카드 결제가
+      가능하다는 점이 분기 GRC 리뷰에서 식별.
+  (C) IPE — Marketplace Settlement Calc
+      셀러 정산 리포트 생성 시 GMV - 수수료(카테고리별) - 결제수수료 - 환불 - 광고비
+      를 자동 차감. 다만 카테고리별 수수료율(COMMISSION_RATE)은 정산팀이 GUI로 변경
+      가능하며 변경 로그만 자동 보존.
+
+▣ 4단계 — 시각화 보조
+  ⓐ 인터페이스 — POS→Hub(실시간), Online→OMS(실시간), Hub→ERP GL(일배치),
+     ERP→Marketplace AP(D+15일).
+  ⓑ 환불 — 7일 이내 자동, 8~30일 매니저 승인, 30일 초과 본부장 승인.
+  ⓒ 수기 분개 — 매장 폐기·도난(Shrinkage) 차감 분개는 점포 회계가 단독 등록.
+  ⓓ SoD — 점포장이 POS 보정과 폐기 분개를 동시 보유한 점포가 23개 (총 256개점 기준).
+
+▣ 핵심 리스크 신호
+  - Completeness: POS_RECON_EXCEPTION 누락 + 점포장 임의 보정.
+  - SoD: 정산 수수료율 변경자와 정산 리포트 승인자가 동일.
+  - Manual: Shrinkage 단독 분개, 폐기 임계값 자동 종결.

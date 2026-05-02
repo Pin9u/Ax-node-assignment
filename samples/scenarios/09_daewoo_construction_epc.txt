@@ -1,0 +1,44 @@
+[가상 고객사 — "한빛E&C" (해외 EPC 건설) / FY2026 매출 인식 Walkthrough]
+
+면담 대상   : 사업관리팀 강 책임, 원가관리팀 임 차장, PMO 윤 매니저, 재무팀 박 차장
+일시        : 2026-04-30
+대상 프로세스: 해외 EPC 프로젝트 진행률 기반 매출 인식 (IFRS15 — Over-time Recognition)
+
+▣ 1단계 — 사건 흐름 (Events)
+  사건 1) 입찰·낙찰 → 본계약 체결 → 프로젝트 마스터(PROJECT) 생성. 계약가(Contract
+          Value), WBS, Activity 분해, 원가예산(Budget Cost) 등록.
+  사건 2) 매월 PMO 가 ACTUAL_COST 입력(직접노무·자재·외주·간접) → COST-TO-COST 방식의
+          진행률(POC) 자동 계산: POC = ACTUAL_COST / EAC(Estimate at Completion).
+  사건 3) POC × CONTRACT_VALUE = 누적 인식 매출 → 당월 매출 = 누적 - 전월누적.
+  사건 4) 변경계약(Change Order — VO) 발생 시 CONTRACT_VALUE 와 EAC 재산정 → 누적 매출
+          재계산 (Cumulative Catch-up).
+  사건 5) Onerous(손실예상) 프로젝트는 즉시 잔여 손실 충당금 인식.
+
+▣ 2단계 — Swimlane
+  • 주체 A (FIELD)    : 현장 (원가입력·검수)
+  • 주체 B (PMO)      : 본사 사업관리·원가관리 시스템 (EPC_PMS)
+  • 주체 C (ESTIMATE) : EAC 재산정 / Risk Reserve 모형
+  • 주체 D (ACCT)     : ERP GL / 외환 평가 / 분개 자동화
+
+▣ 3단계 — 통제점(Control Point)
+  (A) ITAC — Cost Posting Validation
+      현장이 입력한 ACTUAL_COST 가 ACCOUNT 매핑·VAT 처리·통화 환산 룰을 자동검증.
+      단, '미확정 원가(Estimate Accrual)' 는 PMO 가 GUI 입력 가능하며, 다음 달 실원가
+      도착 시 자동 정산되지만 차이 누적치는 별도 모니터링되지 않음.
+  (B) ITAC — EAC Threshold Trigger
+      EAC 변경폭이 직전 EAC 의 ±2% 초과 시 시스템이 'EAC_REVIEW' 워크플로 자동 발동.
+      단, '경미 변경(Minor)' 옵션을 PMO 가 토글하면 워크플로가 우회된다. 사후 검토 부재.
+  (C) IPE — POC Calculation & Catch-up
+      VO 발생 시 누적 매출 재계산 결과(VO_ADJUSTMENT_LINE)는 사업관리팀이 GUI로 검토
+      하며, 회계팀의 별도 재계산 검증은 운영되지 않음.
+
+▣ 4단계 — 시각화 보조
+  ⓐ 인터페이스 — Field→PMS(일배치), PMS→ERP(월배치 결산), ERP→연결자회사(월배치).
+  ⓑ 외환 — 외화계약은 월말 평균환율로 환산.
+  ⓒ 수기 분개 — Onerous 충당금 분개·손실 예상 분개는 재무팀 단독 등록·게시.
+  ⓓ SoD — 사업관리팀이 EAC 변경과 EAC_REVIEW 우회 권한을 동시 보유한 PM 5명 잔존.
+
+▣ 핵심 리스크 신호
+  - Completeness: 미확정 원가 추정치의 누적 정산 모니터링 부재.
+  - SoD: EAC 변경자 = EAC_REVIEW 우회 토글러 동일.
+  - Manual: Onerous 분개 단독, VO Catch-up 재검증 부재.

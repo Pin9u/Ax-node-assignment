@@ -1,0 +1,98 @@
+{
+  "vision_findings": [
+    {
+      "filename": "04_marketplace__seller_master.png",
+      "artifact_type": "MASTER_DATA",
+      "title_ko": "셀러 마스터 — 1P/3P 분류 + 수수료율",
+      "raw_extraction": "SELL-1014 FreshMarket 3P 8.5% / SELL-1287 자체매입 1P 0% / SELL-1331 한미화장품 1P→3P 12.0% / SELL-1419 오션식품 3P 9.0% / SELL-1502 스마일가전 3P→1P 0% / SELL-1611 Daily Beauty 3P 11.0% — 모두 메이커-체커 단독등록",
+      "business_summary_ko": "셀러별 INV_OWNER_FLAG 1P/3P 분류와 SELLER_FEE_RATE를 셀러플랫폼팀이 GUI에서 변경 가능. 6건 중 2건은 분류 자체가 1P↔3P로 토글된 이력 — 매출 인식 방식이 즉시 변경됨.",
+      "logic_branches": [
+        {
+          "condition": "INV_OWNER_FLAG 1P→3P 토글",
+          "meaning_ko": "Gross→Net 매출 인식 방식 즉시 변경",
+          "control_type": "None",
+          "automation": "Manual"
+        },
+        {
+          "condition": "SELLER_FEE_RATE 단독 변경",
+          "meaning_ko": "정산 수수료율 변경",
+          "control_type": "None",
+          "automation": "Manual"
+        }
+      ],
+      "actors": [
+        "셀러플랫폼팀"
+      ],
+      "data_objects": [
+        "SELLER_MASTER",
+        "SELLER_FEE_HIST"
+      ],
+      "audit_red_flags": [
+        "INV_OWNER_FLAG 토글 시 매출 인식 방식 즉시 변경",
+        "SELLER_FEE_RATE 메이커-체커 부재",
+        "변경자/승인자 동일"
+      ],
+      "completeness_signal": "AT_RISK",
+      "sod_signal": "AT_RISK",
+      "manual_intervention_signal": "AT_RISK"
+    }
+  ],
+  "mermaid": "flowchart TB\n  subgraph BUYER[\"🛒 BUYER\"]\n    B1[결제 → ESCROW]:::automated\n  end\n  subgraph SELLER[\"🏪 SELLER CENTER\"]\n    S1[상품 등록]:::manual\n    S2[\\INV_OWNER_FLAG 임의 토글<br/>📎 RC-ECM-001\\]:::risk\n  end\n  subgraph CORE[\"⚙ OMS · ESCROW · Settlement Hub\"]\n    C1[(ORDER_HEADER)]:::automated\n    C2{1P<br/>📎 RC-ECM-001/3P 분류}:::control\n    C3[\\PARTIAL_REFUND 멱등 우회<br/>📎 RC-ECM-002\\]:::risk\n    C4[\\SELLER_FEE_RATE 단독 변경<br/>📎 RC-ECM-003\\]:::risk\n    C5[셀러 정산 D+15<br/>📎 RC-ECM-004]:::control\n  end\n  subgraph FUL[\"📦 풀필먼트 / WMS\"]\n    F1[출고 / 구매확정]:::automated\n  end\n  subgraph ACCT[\"💰 ERP GL\"]\n    A1[Gross/Net 매출 인식]:::control\n  end\n  B1 --> C1\n  S1 --> C1\n  S2 --> C2\n  C1 --> C2\n  C2 -->|구매확정 분기| F1\n  F1 --> C3\n  F1 --> A1\n  C4 --> C5\n  C5 --> A1\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "mermaid_raw": "flowchart TB\n  subgraph BUYER[\"🛒 BUYER\"]\n    B1[결제 → ESCROW]:::automated\n  end\n  subgraph SELLER[\"🏪 SELLER CENTER\"]\n    S1[상품 등록]:::manual\n    S2[\\INV_OWNER_FLAG 임의 토글\\]:::risk\n  end\n  subgraph CORE[\"⚙ OMS · ESCROW · Settlement Hub\"]\n    C1[(ORDER_HEADER)]:::automated\n    C2{1P/3P 분류}:::control\n    C3[\\PARTIAL_REFUND 멱등 우회\\]:::risk\n    C4[\\SELLER_FEE_RATE 단독 변경\\]:::risk\n    C5[셀러 정산 D+15]:::control\n  end\n  subgraph FUL[\"📦 풀필먼트 / WMS\"]\n    F1[출고 / 구매확정]:::automated\n  end\n  subgraph ACCT[\"💰 ERP GL\"]\n    A1[Gross/Net 매출 인식]:::control\n  end\n  B1 --> C1\n  S1 --> C1\n  S2 --> C2\n  C1 --> C2\n  C2 -->|구매확정 분기| F1\n  F1 --> C3\n  F1 --> A1\n  C4 --> C5\n  C5 --> A1\n  classDef automated fill:#1A1A1A,stroke:#1A1A1A,color:#FFFFFF;\n  classDef manual    fill:#FFFFFF,stroke:#1A1A1A,color:#1A1A1A;\n  classDef risk      fill:#FFF3EB,stroke:#DC6B2F,color:#1A1A1A,stroke-width:2px;\n  classDef control   fill:#FFE0CC,stroke:#DC6B2F,color:#1A1A1A,stroke-dasharray: 4 2;\n",
+  "rcm_mapping": {
+    "mappings": [
+      {
+        "node_id": "S2",
+        "node_label": "INV_OWNER_FLAG 임의 토글",
+        "matched_control_id": "RC-ECM-001",
+        "matched_control_activity": "분류 변경 메이커-체커 + 시점 통제",
+        "confidence": "High",
+        "rationale_ko": "1P/3P 분류 통제와 매핑, 미운영 → 공백",
+        "is_gap": true
+      },
+      {
+        "node_id": "C2",
+        "node_label": "1P/3P 분류",
+        "matched_control_id": "RC-ECM-001",
+        "matched_control_activity": "분류 변경 메이커-체커 + 시점 통제",
+        "confidence": "High",
+        "rationale_ko": "Gross/Net 결정 통제",
+        "is_gap": false
+      },
+      {
+        "node_id": "C3",
+        "node_label": "PARTIAL_REFUND 멱등 우회",
+        "matched_control_id": "RC-ECM-002",
+        "matched_control_activity": "전 상태경로 멱등키 검증 강제",
+        "confidence": "High",
+        "rationale_ko": "멱등 검증 통제 누락 분기 식별",
+        "is_gap": true
+      },
+      {
+        "node_id": "C4",
+        "node_label": "SELLER_FEE_RATE 단독 변경",
+        "matched_control_id": "RC-ECM-003",
+        "matched_control_activity": "변경 메이커-체커 + 분기 재평가",
+        "confidence": "High",
+        "rationale_ko": "수수료율 통제 매핑",
+        "is_gap": true
+      },
+      {
+        "node_id": "C5",
+        "node_label": "셀러 정산 D+15",
+        "matched_control_id": "RC-ECM-004",
+        "matched_control_activity": "임계값 분기 합리성 재평가",
+        "confidence": "Medium",
+        "rationale_ko": "자동확정 임계값 재평가",
+        "is_gap": false
+      }
+    ],
+    "gap_summary_ko": "Gross/Net 분류·멱등·수수료율 3대 통제 공백."
+  },
+  "risks": {
+    "completeness": "🚨 **PARTIAL_REFUND 경로 멱등 우회 → 중복 매출 인식 가능**\n발견 근거: 인터뷰 §3-(B) SRE 인시던트 보고서.\n권고: 전 상태경로 멱등키 단위테스트 + 과거 6개월 PARTIAL_REFUND 100% 재산정 — Re-perform.",
+    "sod": "🚨 **분류·수수료율 변경자 = 정산 승인자 동일**\n발견 근거: 인터뷰 §4-ⓓ — 셀러플랫폼팀 시니어 4명.\n권고: GRC 충돌룰 강화 + 분기 detection.",
+    "manual": "🚨 **INV_OWNER_FLAG 임의 토글로 인식방식 즉시 변경**\n발견 근거: 인터뷰 §3-(A).\n권고: 분류변경 메이커-체커 즉시 + 변경 시점 매출 영향 재계산.",
+    "overall_severity": "High"
+  }
+}

@@ -1,0 +1,48 @@
+[가상 고객사 — "KMC뱅크" (시중은행) / FY2026 매출(이자·수수료) 인식 Walkthrough]
+
+면담 대상   : 여신본부 한 부장, 운영본부 차 차장, 결산팀 정 책임, IT감사대응팀 김 매니저
+일시        : 2026-04-26
+대상 프로세스: 가계·기업 대출 이자수익 인식 + 수수료 매출 (Banking — Interest & Fee)
+
+▣ 1단계 — 사건 흐름 (Events)
+  사건 1) 차주가 대출 약정 → 여신시스템(LOAN_CORE)에 LOAN_ACCT 생성. 금리(BASE+SPREAD),
+          상환방식(원리금균등/원금균등/만기일시), 이자계산방법(360/365)이 결정.
+  사건 2) 일배치(EOD)가 LOAN_ACCT 별 일할 발생이자(Daily Accrual)를 계산하여
+          INTEREST_ACCRUAL_LINE 적재.
+  사건 3) 정기일에 ACCRUAL → ACTUAL 이자 청구 + 자동이체. 연체 시 OVERDUE_RULE 적용.
+  사건 4) 수수료(취급수수료, 중도상환수수료, 외화송금수수료, 카드수수료 등)는 EVENT
+          기반으로 발생 시점에 즉시 매출 인식.
+  사건 5) 월말 결산 시 IFRS9 (충당금/유효이자율) 모형이 INTEREST_ADJ_LINE 을 생성하여
+          조정. SPPI 테스트 미통과 자산은 별도 회계처리.
+
+▣ 2단계 — Swimlane
+  • 주체 A (CHANNEL)     : 영업점 / 모바일뱅킹 / API 채널 (외부)
+  • 주체 B (CORE)        : 여신시스템 (LOAN_CORE) / 외환 / 카드
+  • 주체 C (RISK / IFRS) : 충당금모형 / 유효이자율 / SPPI 분류
+  • 주체 D (ACCT)        : G/L 결산 시스템
+
+▣ 3단계 — 통제점(Control Point)
+  (A) ITAC — Daily Accrual Reconciliation
+      EOD 실행 시 LOAN_CORE 의 잔액×금리×일수 와 INTEREST_ACCRUAL_LINE 합계를 자동대사.
+      차이 발생 시 EOD_EXCEPTION 적재. 단, '익일 자동 흡수(Auto-Absorb)' 옵션이 켜져
+      있어 임계값(±1만원) 미만 차이는 다음 영업일 잔액에 반영되며 별도 보고는 없음.
+  (B) ITAC — Rate Master Validation
+      신규 LOAN_ACCT 등록 시 BASE 금리(시장조달금리)는 시스템이 자동 적용하지만 SPREAD
+      는 영업담당자가 수동 입력. SPREAD 가 한도(예: -200bp ~ +500bp) 를 벗어나면
+      'RATE_HOLD' 로 전환되며 본부장 단독 승인으로 해제 가능.
+  (C) IPE — IFRS9 Model Output
+      유효이자율(EIR) 재계산 결과 INTEREST_ADJ_LINE 은 결산팀이 모형 파라미터(현금흐름
+      가정·할인율 곡선)를 변경하여 산출 가능. 모형 변경의 메이커-체커는 운영되지 않으며,
+      변경 로그(MODEL_PARAM_HIST)만 보존.
+
+▣ 4단계 — 시각화 보조
+  ⓐ 인터페이스 — Channel→LOAN_CORE(실시간), LOAN_CORE→Risk(분배치),
+     Risk→GL(EOD/월배치).
+  ⓑ 외환 — 외화대출은 일별 환율재평가 발생, 환차손익 자동 분개.
+  ⓒ 수기 분개 — 부도채권(Default) 발생 시 충당금 재산정·매출 차감 분개는 결산팀 단독.
+  ⓓ SoD — 영업점 시니어가 SPREAD 입력과 RATE_HOLD 해제 승인을 동시 보유한 사례 잔존.
+
+▣ 핵심 리스크 신호
+  - Completeness: EOD_EXCEPTION 자동흡수 누적의 매출 영향 미보고.
+  - SoD: 금리 입력자 = 금리 hold 해제자 동일.
+  - Manual: IFRS9 모형 파라미터 단독 변경, MODEL_PARAM_HIST 사후검토 부재.

@@ -1,0 +1,45 @@
+[가상 고객사 — "한일텔레콤" (이동통신 + 기업회선) / FY2026 매출 인식 Walkthrough]
+
+면담 대상   : 빌링플랫폼팀 백 책임, B2B영업팀 정 매니저, 정산팀 김 책임, 재무팀 박 차장
+일시        : 2026-04-29
+대상 프로세스: 통신 매출 인식 (정액·종량·번들·로밍·5G IoT 회선)
+
+▣ 1단계 — 사건 흐름 (Events)
+  사건 1) 가입자 개통 → 회선·요금제·약정 마스터(SUBSCRIBER_PLAN) 생성.
+  사건 2) 통화·데이터·SMS 사용 시 CDR(Call Detail Record) 가 시간 단위로 메디에이션
+          시스템(MEDIATION)에 적재.
+  사건 3) 야간 배치(EOD)가 CDR 을 요금제별 RATE_CARD 로 평가하여 RATING_LINE 생성.
+  사건 4) 청구주기(월/일)별로 BILLING_RUN 이 RATING_LINE + 정액료 + 부가서비스 +
+          단말 할부금 을 합산하여 INVOICE 생성. 약정 할인은 ALLOCATION 룰 기반 분배.
+  사건 5) 5G IoT 회선(B2B) 은 회선 수 × 단가 + 트래픽 슬라이스로 별도 청구.
+
+▣ 2단계 — Swimlane
+  • 주체 A (NETWORK)   : 교환기 / RAN / 메디에이션 (외부 인프라)
+  • 주체 B (RATING)    : 레이팅 엔진 / 빌링 코어
+  • 주체 C (B2B)       : 기업회선 영업 / 계약관리
+  • 주체 D (ACCT)      : ERP GL / 분개 자동화
+
+▣ 3단계 — 통제점(Control Point)
+  (A) ITAC — CDR Completeness Reconciliation
+      메디에이션이 수신한 CDR 합계와 레이팅 엔진이 처리한 RATING_LINE 합계를 시간단위로
+      자동대사. 차이 발생 시 CDR_LOSS_QUEUE 에 적재. 단, 메디에이션 자체가 누락한 호
+      (예: 시그널링 장애)는 본 대사로 식별 불가.
+  (B) ITAC — Rate Card Validation
+      RATE_CARD 변경(예: 신규 요금제 출시)은 빌링플랫폼팀이 GUI 등록 후, 시스템이 직전
+      14일 청구분에 대한 회귀(Regression) 평가를 자동 실행 → 차이 5% 초과 시 'BLOCK'.
+      단, 본부장 단독 'Force-publish' 권한이 있으며 사후 검토는 분기 1회.
+  (C) IPE — Bundle Allocation Output
+      번들(통화+데이터+OTT) 청구 시 IFRS15 SSP 분배. SSP 마스터는 정산팀이 GUI에서
+      변경 가능, 메이커-체커 부재.
+
+▣ 4단계 — 시각화 보조
+  ⓐ 인터페이스 — Mediation→Rating(시간배치), Rating→Billing(EOD),
+     Billing→ERP(일배치).
+  ⓑ 로밍(Roaming) — 해외 사업자 인터커넥트 매출/원가는 월배치 net 정산.
+  ⓒ 수기 분개 — 망 임대료(Interconnect) 정산차이 분개는 정산팀 단독 등록·게시.
+  ⓓ SoD — RATE_CARD 등록자와 Force-publish 승인자가 동일한 시니어 3명 잔존.
+
+▣ 핵심 리스크 신호
+  - Completeness: CDR_LOSS_QUEUE 외부 누락 호의 식별 부재.
+  - SoD: 요금제 등록자 = Force-publish 승인자 동일.
+  - Manual: SSP 마스터 단독 변경, 인터커넥트 정산차이 분개 단독 게시.

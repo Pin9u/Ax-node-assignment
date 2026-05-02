@@ -1,0 +1,49 @@
+[가상 고객사 — "한일오토모티브" (자동차 부품 1차벤더) / FY2026 매출 프로세스 Walkthrough]
+
+면담 대상   : 영업관리팀 윤 책임, 생산관리팀 조 차장, 출하관리팀 안 매니저, 재무팀 박 차장
+일시        : 2026-04-23
+대상 프로세스: 글로벌 OEM(현대·기아·도요타) 대상 자동차 부품 매출 (B2B / Forecast→PO→Ship→Bill)
+
+▣ 1단계 — 사건 흐름 (Events)
+  사건 1) OEM이 EDI(VDA·OFTP) 또는 SCM 포털을 통해 월간 Forecast 와 일자별 JIT call-off
+          (생산호출)을 송신.
+  사건 2) ERP가 호출 데이터를 SO_HEADER / SO_LINE 으로 자동 변환. 가격은 Annual Pricing
+          Letter(APL) 마스터 단가가 자동 적용된다.
+  사건 3) 생산관리시스템(MES)이 JIT 시퀀스에 맞춰 양산 → WMS 출고지시.
+  사건 4) WMS가 ASN(Advanced Shipping Notice) 송신 + 출하증빙 발행. 출하 시점에
+          매출인식 트리거(EVENT='SHIP_OUT')가 ERP로 전달된다.
+  사건 5) ERP가 월말 단가소급(Retroactive Pricing) 차이를 반영해 인보이스를 생성하고
+          OEM 포털로 전송 → AR 수금.
+
+▣ 2단계 — Swimlane
+  • 주체 A (OEM)         : EDI/SCM 포털 (외부 주체)
+  • 주체 B (ERP)         : SO·AR·GL 운영 핵심 시스템 (S/4HANA)
+  • 주체 C (MES/WMS)     : 생산·출하 운영
+  • 주체 D (재무·영업관리): 단가 관리, 인보이스 검증, 수금 모니터링
+
+▣ 3단계 — 통제점(Control Point)
+  (A) ITAC — EDI 메시지 무결성
+      VDA 4905(Delivery) 메시지 수신 시 시스템이 송신자 PartnerID, 메시지 일련번호,
+      체크섬을 자동검증. 단, 검증 실패건은 EDI_EXCEPTION에 적재되며 IT운영팀이 수동
+      재처리하지만 재무팀 사후 모니터링은 부재.
+  (B) ITAC — Pricing Validation
+      호출 단가가 APL 마스터의 ±0.5% 범위를 벗어나면 시스템이 SO 라인을 'PRICE_HOLD'
+      상태로 전환. 단, 본부장 단독 'Override'로 해제 가능하며 override 사유 입력은
+      필수가 아니다.
+  (C) IPE — Retroactive Pricing 정확성
+      월말에 OEM에서 통보한 'Retro PO' 와 기 인식 매출의 단가 차액을 자동 가감하여
+      RETRO_ADJ_LINE 을 생성. 단, RETRO_RULE 파라미터(소급 적용 시점·환율 변환)는
+      영업관리팀이 GUI로 변경 가능하며 메이커-체커는 운영되지 않는다.
+
+▣ 4단계 — 시각화 보조
+  ⓐ 인터페이스 — EDI→ERP(실시간), MES→ERP(분배치), WMS→ERP(출하시), ERP→OEM 포털(일배치).
+  ⓑ 관세/환율 — USD/EUR 매출은 월말 평균환율로 환산되며 환차손익은 자동분개.
+  ⓒ 수기 분개 — 부품 PPV(Purchase Price Variance) 정산 분개는 재무팀이 단독 등록·게시.
+  ⓓ SoD — 영업관리팀 시니어 2명에게 'APL 단가 변경 권한'과 'PRICE_HOLD 해제 권한'이
+     동시에 부여되어 있음.
+  ⓔ 출하 클레임 — OEM 라인스톱 시 클레임 충당금을 재무팀이 수기로 차감.
+
+▣ 핵심 리스크 신호
+  - Completeness: EDI_EXCEPTION 누락건이 인식 매출에서 빠질 수 있음.
+  - SoD: 단가 변경자 = 단가 hold 해제자 동일.
+  - Manual Override: PRICE_HOLD 무사유 해제, RETRO_RULE 단독 변경.

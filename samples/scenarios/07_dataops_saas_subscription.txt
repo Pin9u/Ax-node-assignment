@@ -1,0 +1,48 @@
+[가상 고객사 — "DataOps Cloud" (B2B SaaS) / FY2026 매출 인식 Walkthrough]
+
+면담 대상   : 세일즈오프스 윤 매니저, 빌링플랫폼팀 신 책임, RevOps 김 책임, 재무팀 박 차장
+일시        : 2026-04-28
+대상 프로세스: 다년 SaaS 구독 매출 (Subscription) + 사용량 기반 매출 (Usage-based)
+              + 전문서비스 매출 (PS) — IFRS15 기반 5단계 인식 모형
+
+▣ 1단계 — 사건 흐름 (Events)
+  사건 1) Sales 가 CPQ 에서 견적 → DocuSign → ORDER FORM 체결.
+  사건 2) Salesforce CPQ 의 ORDER → 빌링시스템(BillingHub)으로 인터페이스 → 계약·SKU
+          별로 PERFORMANCE_OBLIGATION 자동 분해 (구독·PS·트레이닝·지원).
+  사건 3) Effective Date 도래 시 구독 매출 인식 시작 (Straight-line over term).
+          PS는 마일스톤 또는 % completion 기반.
+  사건 4) Usage SKU(API call·storage·compute) 는 일배치로 USAGE_METER 에서 집계 →
+          USAGE_BILLING_LINE 생성 → 월말 인보이스 발행.
+  사건 5) 인보이스 발행 → ERP AR → 수금 → CashApp 자동 매칭.
+
+▣ 2단계 — Swimlane
+  • 주체 A (SALES)    : Salesforce CPQ
+  • 주체 B (BILLING)  : 자체 빌링플랫폼 (BillingHub)
+  • 주체 C (PRODUCT)  : 사용량 메터 (USAGE_METER) — 제품 인스트루멘테이션
+  • 주체 D (ACCT)     : NetSuite ERP / RevRec 모듈
+
+▣ 3단계 — 통제점(Control Point)
+  (A) ITAC — Performance Obligation Allocation
+      ORDER 의 SSP(Standalone Selling Price) 가 SKU 마스터에서 자동 적용되어 PO 별
+      거래가격 분배. 단, '커스텀 SSP 지정' 옵션이 영업담당자에게 부여되어 있어 협상
+      할인 케이스에서 SSP 가 임의 설정될 수 있음 — 분배 결과의 사후 검증 절차 부재.
+  (B) ITAC — Usage Meter Reconciliation
+      USAGE_METER 의 일별 합계와 USAGE_BILLING_LINE 의 합계가 자동대사. 차이 발생 시
+      USAGE_RECON_EXCEPTION 에 적재. 단, 인스트루멘테이션 누락(미계측 호출)은 메터
+      자체에 잡히지 않으므로 누락 검증은 별도의 Backfill 절차에 의존.
+  (C) IPE — Deferred Revenue Roll-forward
+      월말 DR(Deferred Revenue) 잔액 = 기초 + 신규청구 - 인식매출 - 환불. 환불·계약
+      변경(Modification) 시점에 DR 재계산 룰이 적용되며, 'Contract Mod Type' 분류
+      (Prospective vs Cumulative Catch-up)는 RevOps 가 GUI에서 결정.
+
+▣ 4단계 — 시각화 보조
+  ⓐ 인터페이스 — CPQ→BillingHub(실시간), BillingHub→ERP(일배치),
+     USAGE_METER→BillingHub(시간배치).
+  ⓑ Multi-currency — USD/EUR/JPY/KRW 청구 (월말 평균환율 기준).
+  ⓒ 수기 분개 — Contract Mod Cumulative Catch-up 분개는 RevOps 단독 등록·게시.
+  ⓓ SoD — Sales rep 이 SSP 변경과 ORDER FORM 승인을 동시 보유한 시니어 7명 잔존.
+
+▣ 핵심 리스크 신호
+  - Completeness: 인스트루멘테이션 누락 사용량의 매출 누락.
+  - SoD: SSP 변경자 = ORDER 승인자 동일.
+  - Manual: Contract Mod Type 분류의 단독 결정, Catch-up 분개 단독 게시.
