@@ -496,6 +496,38 @@ with st.sidebar:
             )
         process_for_pipeline = process_custom.strip() or process_choice
 
+        # ── 차트 모드 — process_map (swimlane) vs transaction_trace (lineage) ──
+        mode_choice = st.radio(
+            "차트 모드",
+            options=[
+                "🗺 프로세스 맵 (전체 swimlane)",
+                "🎯 Transaction Trace (한 거래 → 매출전표)",
+            ],
+            index=1,
+            help=(
+                "Transaction Trace: 한 거래(transaction)가 매출전표(분개)까지 "
+                "어떻게 도달하는지 시간순 lineage. 시스템·테이블명·차변/대변까지 자동 도출."
+            ),
+        )
+        chart_mode = ("transaction_trace" if "Trace" in mode_choice
+                      else "process_map")
+
+        # Reference sample (optional) — auditor's prior walkthrough memo
+        with st.expander("📚 참고 샘플 (선택) — 클라이언트 양식 학습"):
+            reference_sample = st.text_area(
+                "기존 회사 walkthrough 메모를 붙여넣으면 그 양식·용어·테이블명을 따라갑니다.",
+                height=140,
+                placeholder=(
+                    "예) [클라이언트 회사 doc lib에서 가져온 메모 일부]\n"
+                    "Order entry 는 SAP S/4HANA 의 VBAK / VBAP 에 저장.\n"
+                    "Credit check 결과는 KNKK 의 status 컬럼 갱신.\n"
+                    "...\n\n"
+                    "(민감정보 ███ 처리 권장)"
+                ),
+                help="이 텍스트는 매 LLM 호출에 few-shot 참고로 포함됩니다.",
+            )
+        reference_sample = reference_sample or ""
+
         st.markdown("### 1) 인터뷰 내러티브")
         narrative = st.text_area(
             "고객 인터뷰 메모",
@@ -719,6 +751,8 @@ if run:
             mermaid_code, _plan, plan_validation = generate_mermaid(
                 narrative_for_pipeline, findings,
                 process=process_for_pipeline,
+                mode=chart_mode,
+                reference_sample=reference_sample,
                 api_key=api_key, model=model,
                 return_metadata=True,
             )

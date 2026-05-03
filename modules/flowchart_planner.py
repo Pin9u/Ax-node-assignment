@@ -60,6 +60,13 @@ class PlanNode:
     cls: str = ""                    # automated | manual | control | risk | ""
     evidence_source: str = ""
 
+    # NEW — transaction-trace fields. Optional for process_map mode,
+    # strongly required for transaction_trace mode.
+    system: str = ""                 # e.g., "SAP S/4HANA", "Oracle EBS", "자체 OMS"
+    tables: List[str] = field(default_factory=list)   # ["VBAK", "VBAP"]
+    data_action: str = ""            # READ | INSERT | UPDATE | DELETE | TRIGGER | POST
+    sample_value: str = ""           # e.g., "SO-2026-1547 ₩11,000,000"
+
     @property
     def is_decision(self) -> bool:
         return self.shape == "decision"
@@ -74,12 +81,35 @@ class PlanEdge:
 
 
 @dataclass
+class JournalLine:
+    """One line of a journal entry: 차변 or 대변 + 계정 + 금액."""
+    side: str = "Dr"                 # "Dr" | "Cr"
+    account: str = ""                # 한국어 계정명 (예: "외상매출금")
+    amount: str = ""                 # 문자열 (포맷팅 자유 — "₩11,000,000" 등)
+    memo: str = ""
+
+
+@dataclass
+class JournalEntry:
+    """Final transaction-trace landing: the journal entry that the
+    transaction posts to. Required for transaction_trace mode."""
+    doc_no: str = ""                 # JE-2026-A-19284
+    posting_date: str = ""           # 2026-04-15
+    system: str = ""                 # "SAP FI" | "Oracle GL" | "자체 GL"
+    tables: List[str] = field(default_factory=list)   # ["BKPF","BSEG"] — JE landing tables
+    lines: List[JournalLine] = field(default_factory=list)
+
+
+@dataclass
 class FlowchartPlan:
     process: str = ""
+    mode: str = "process_map"        # "process_map" | "transaction_trace"
     lanes: List[PlanLane] = field(default_factory=list)
     nodes: List[PlanNode] = field(default_factory=list)
     edges: List[PlanEdge] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
+    journal_entry: Optional[JournalEntry] = None
+    sample_transaction: str = ""     # human-readable seed: "고객 A · ₩11M · 2026-04-15"
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +148,11 @@ def _safe_json_loads(text: str) -> Dict[str, Any]:
 # Plan loader — turns raw LLM JSON into typed ``FlowchartPlan``
 # ---------------------------------------------------------------------------
 def plan_from_json(data: Dict[str, Any]) -> FlowchartPlan:
-    plan = FlowchartPlan(process=str(data.get("process", "")))
+    plan = FlowchartPlan(
+        process=str(data.get("process", "")),
+        mode=str(data.get("mode", "process_map")).strip() or "process_map",
+        sample_transaction=str(data.get("sample_transaction", "")).strip(),
+    )
     for raw in data.get("lanes", []) or []:
         plan.lanes.append(PlanLane(
             id=str(raw.get("id", "")).strip() or "LANE",
@@ -133,6 +167,10 @@ def plan_from_json(data: Dict[str, Any]) -> FlowchartPlan:
             shape=str(raw.get("shape", "process")).strip().lower() or "process",
             cls=str(raw.get("cls", "")).strip().lower(),
             evidence_source=str(raw.get("evidence_source", "")).strip(),
+            system=str(raw.get("system", "")).strip(),
+            tables=[str(t).strip() for t in (raw.get("tables") or []) if str(t).strip()],
+            data_action=str(raw.get("data_action", "")).strip().upper(),
+            sample_value=str(raw.get("sample_value", "")).strip(),
         ))
     for raw in data.get("edges", []) or []:
         plan.edges.append(PlanEdge(
@@ -142,6 +180,23 @@ def plan_from_json(data: Dict[str, Any]) -> FlowchartPlan:
             condition=str(raw.get("condition", "")).strip(),
         ))
     plan.notes = [str(n).strip() for n in (data.get("notes") or [])]
+
+    je_raw = data.get("journal_entry")
+    if isinstance(je_raw, dict) and (je_raw.get("lines") or je_raw.get("doc_no")):
+        je = JournalEntry(
+            doc_no=str(je_raw.get("doc_no", "")).strip(),
+            posting_date=str(je_raw.get("posting_date", "")).strip(),
+            system=str(je_raw.get("system", "")).strip(),
+            tables=[str(t).strip() for t in (je_raw.get("tables") or []) if str(t).strip()],
+        )
+        for line in je_raw.get("lines", []) or []:
+            je.lines.append(JournalLine(
+                side=str(line.get("side", "Dr")).strip().capitalize() or "Dr",
+                account=str(line.get("account", "")).strip(),
+                amount=str(line.get("amount", "")).strip(),
+                memo=str(line.get("memo", "")).strip(),
+            ))
+        plan.journal_entry = je
     return plan
 
 
@@ -321,6 +376,72 @@ def _safe_label(label: str) -> str:
     return f'"{text}"'
 
 
+def _node_rich_label(n: PlanNode) -> str:
+    """Build a multi-line node label that includes system + tables when
+    present. The auditor needs to see ``system · table`` to write CAATs."""
+    parts: List[str] = [n.label_ko.strip() or n.id]
+    meta_lines: List[str] = []
+
+    if n.system:
+        meta_lines.append(f"🏛 {n.system}")
+    if n.tables:
+        action = f" ({n.data_action})" if n.data_action else ""
+        meta_lines.append("📊 " + " · ".join(n.tables) + action)
+    if n.sample_value:
+        meta_lines.append(f"🔖 {n.sample_value}")
+
+    if meta_lines:
+        # Mermaid renders <br/> as a soft line break inside a quoted label.
+        # We add a faint divider line so the metadata block visually separates.
+        parts.append("━━━━━━━━━━")
+        parts.extend(meta_lines)
+
+    return "<br/>".join(parts)
+
+
+def _render_journal_entry_node(plan: FlowchartPlan) -> List[str]:
+    """Append a journal-entry node + edges from terminal lineage nodes."""
+    je = plan.journal_entry
+    if not je or not je.lines:
+        return []
+
+    # Build a multi-line label with debits then credits
+    header_lines: List[str] = ["📒 매출전표 (Journal Entry)"]
+    if je.doc_no:
+        header_lines.append(f"문서번호: {je.doc_no}")
+    if je.posting_date:
+        header_lines.append(f"전기일: {je.posting_date}")
+    if je.system:
+        header_lines.append(f"🏛 {je.system}")
+    if je.tables:
+        header_lines.append("📊 " + " · ".join(je.tables))
+    header_lines.append("━━━━━━━━━━")
+
+    line_lines: List[str] = []
+    for ln in je.lines:
+        side_emoji = "🔻" if ln.side == "Dr" else "🔺"
+        amt = f"  {ln.amount}" if ln.amount else ""
+        memo = f"  ({ln.memo})" if ln.memo else ""
+        line_lines.append(f"{side_emoji} {ln.side}) {ln.account}{amt}{memo}")
+
+    label = "<br/>".join(header_lines + line_lines)
+    out: List[str] = []
+    # Render JE as a stadium-shape node (rounded edges) for visual emphasis
+    out.append(f'  JE_FINAL([{_safe_label(label)}])')
+    out.append('  classDef journalEntry fill:#FFF8F2,stroke:#1A1A1A,'
+               'stroke-width:2px,color:#1A1A1A,font-family:monospace;')
+    out.append('  class JE_FINAL journalEntry;')
+
+    # Connect every node that has zero outgoing edges to the JE node
+    out_count: Dict[str, int] = {}
+    for e in plan.edges:
+        out_count[e.from_id] = out_count.get(e.from_id, 0) + 1
+    for n in plan.nodes:
+        if out_count.get(n.id, 0) == 0:
+            out.append(f'  {n.id} -->|posting| JE_FINAL')
+    return out
+
+
 def render_plan_to_mermaid(plan: FlowchartPlan, *, direction: str = "TB") -> str:
     """Convert a validated/repaired plan into perfect Mermaid v10 source."""
     lines: List[str] = [f"flowchart {direction}"]
@@ -338,7 +459,9 @@ def render_plan_to_mermaid(plan: FlowchartPlan, *, direction: str = "TB") -> str
         lines.append(f'  subgraph {lane.id}[{_safe_label(lane.label_ko)}]')
         for n in nodes_by_lane.get(lane.id, []):
             open_d, close_d = SHAPE_DELIMS[n.shape]
-            label = _safe_label(n.label_ko)
+            # Use rich label (system + tables + sample_value) when present
+            rich = _node_rich_label(n)
+            label = _safe_label(rich)
             cls_suffix = f":::{n.cls}" if n.cls in {"automated", "manual", "control", "risk"} else ""
             lines.append(f'    {n.id}{open_d}{label}{close_d}{cls_suffix}')
         lines.append('  end')
@@ -353,6 +476,12 @@ def render_plan_to_mermaid(plan: FlowchartPlan, *, direction: str = "TB") -> str
             lines.append(f'  {e.from_id} -->|{e.label_ko}| {e.to_id}')
         else:
             lines.append(f'  {e.from_id} --> {e.to_id}')
+
+    # Journal-entry termination block (transaction_trace mode)
+    je_block = _render_journal_entry_node(plan)
+    if je_block:
+        lines.append('')
+        lines.extend(je_block)
 
     lines.append('')
     lines.append(_CLASS_DEFS)
@@ -391,6 +520,8 @@ def synthesize_flowchart(
     *,
     process: str = "매출 (Revenue / Order-to-Cash)",
     direction: str = "TB",
+    mode: str = "process_map",
+    reference_sample: str = "",
     api_key: Optional[str] = None,
     model: Optional[str] = None,
     enable_self_improve: bool = True,
@@ -398,14 +529,33 @@ def synthesize_flowchart(
     """Run the planner, validate, repair, render — and optionally do one
     self-improve round if validation surfaced warnings.
 
+    Args:
+        mode: ``process_map`` (swimlane overview) or ``transaction_trace``
+              (one-transaction lineage to journal entry).
+        reference_sample: optional auditor's prior walkthrough memo to use
+              as a few-shot reference for house style.
+
     Returns ``(mermaid_source, plan, validation)``.
     """
     logic_blocks = "\n\n".join(f.to_prompt_block() for f in findings) \
         or "(증적 이미지 없음 — 내러티브만으로 작성하세요.)"
+
+    reference_block = ""
+    if reference_sample.strip():
+        reference_block = (
+            "## 참고 — 클라이언트 회사의 기존 walkthrough 양식 (이 스타일·"
+            "용어·테이블명을 우선 따라주세요. 형식만 참고, 내용은 위 입력 기준)\n"
+            "---\n"
+            f"{reference_sample.strip()[:4000]}\n"
+            "---\n"
+        )
+
     user = FLOWCHART_PLANNER_USER_PROMPT.format(
         narrative=narrative.strip() or "(빈 내러티브)",
         logic_blocks=logic_blocks,
         process=process or "매출 (Revenue / Order-to-Cash)",
+        mode=mode,
+        reference_block=reference_block,
     )
     raw = call_text(
         FLOWCHART_PLANNER_SYSTEM_PROMPT, user,

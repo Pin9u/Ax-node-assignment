@@ -81,6 +81,8 @@ def generate_mermaid(
     *,
     process: str = "매출 (Revenue / Order-to-Cash)",
     direction: str = "TB",
+    mode: str = "process_map",
+    reference_sample: str = "",
     api_key: Optional[str] = None,
     model: Optional[str] = None,
     return_metadata: bool = False,
@@ -103,6 +105,7 @@ def generate_mermaid(
         mermaid, plan, validation = synthesize_flowchart(
             narrative, findings,
             process=process, direction=direction,
+            mode=mode, reference_sample=reference_sample,
             api_key=api_key, model=model,
         )
         if return_metadata:
