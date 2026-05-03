@@ -584,6 +584,119 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   border: 1px solid rgba(220, 38, 38, 0.30);
 }
 
+/* Key Trail ribbon — visualises the transaction's identifying key as it
+   changes through each system. Each step is a card; arrows between them
+   show the linkage (via_table + transform_type), red when 1:1 breaks. */
+.key-trail-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+  margin: 12px 0 8px 0;
+  padding: 14px;
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-left: 4px solid var(--pwc-orange);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.kt-step {
+  flex: 1 1 160px;
+  min-width: 160px;
+  background: var(--pwc-grey-2);
+  border: 1px solid var(--pwc-grey-3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.kt-step-id {
+  position: absolute; top: -8px; left: 10px;
+  background: var(--pwc-orange);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+.kt-step-label {
+  font-weight: 700;
+  color: var(--pwc-black);
+  margin-top: 6px;
+  word-break: keep-all;
+}
+.kt-step-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--pwc-orange-deep);
+  word-break: break-all;
+}
+.kt-step-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.84rem;
+  color: var(--pwc-black);
+  background: #FFFFFF;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--pwc-grey-3);
+  word-break: break-all;
+}
+.kt-step-sys {
+  font-size: 0.75rem;
+  color: var(--pwc-grey-5);
+}
+.kt-arrow {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 110px;
+  padding: 0 4px;
+}
+.kt-arrow-line {
+  width: 100%; height: 2px;
+  background: var(--pwc-grey-4);
+  position: relative;
+}
+.kt-arrow-line::after {
+  content: ""; position: absolute; right: -1px; top: -4px;
+  border-left: 8px solid var(--pwc-grey-4);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+.kt-arrow-broken .kt-arrow-line {
+  background: var(--sev-high);
+  background-image: repeating-linear-gradient(
+    90deg, var(--sev-high) 0 5px, transparent 5px 9px);
+  height: 3px;
+}
+.kt-arrow-broken .kt-arrow-line::after {
+  border-left-color: var(--sev-high);
+}
+.kt-arrow-meta {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--pwc-grey-5);
+  text-align: center;
+  word-break: keep-all;
+}
+.kt-arrow-broken .kt-arrow-meta { color: var(--sev-high); font-weight: 600; }
+.kt-warn {
+  margin: 8px 0 0 0;
+  padding: 10px 14px;
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.30);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  color: var(--sev-high);
+}
+@media (max-width: 720px) {
+  .key-trail-ribbon { flex-direction: column; }
+  .kt-arrow { width: 100%; transform: rotate(90deg); margin: 8px 0; min-width: 0; }
+}
+
 /* Critical path summary bar (just below the flowchart) */
 .critical-path-bar {
   display: flex;

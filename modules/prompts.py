@@ -439,15 +439,42 @@ FLOWCHART_PLANNER_SYSTEM_PROMPT = """당신은 Big 4 IT 감사 walkthrough의
 ## ⭐️ 시스템·테이블 정보는 *반드시* 포함  (감사인이 CAAT 쿼리 짤 때 사용)
 
 모든 process / data_store / decision 노드는 가능하면 다음 메타 필드를 채우세요:
-   - "system":  "SAP S/4HANA" / "Oracle EBS" / "자체 OMS" / "PG (KCP)" 등
-   - "tables":  ["VBAK","VBAP"] 같은 실제 테이블/엔티티 명 배열
+   - "system":  "SAP S/4HANA" / "Oracle EBS" / "자체 OMS" / "PG (KCP)" /
+                "Mainframe DB2" / "AS/400 RPG" / "Excel-based" / etc.
+   - "tables":  ["VBAK","VBAP"] / ["RA_CUSTOMER_TRX_ALL"] / ["tbl_orders"] 등
+                **클라이언트가 실제 쓰는 이름으로**. SAP/Oracle/MSSQL/legacy 어떤 환경이든.
    - "data_action": READ | INSERT | UPDATE | DELETE | TRIGGER | POST
-   - "sample_value": (transaction_trace에서) 그 시점 거래의 구체값.
-                     예: "SO-2026-1547 ₩11,000,000"
+   - "sample_value": (transaction_trace) 그 시점 거래의 구체값. 예: "SO-2026-1547 ₩11M"
 
-테이블·시스템명을 narrative·evidence에서 찾지 못하면 산업 표준에서 [추정]으로 채우되
-label_ko 또는 evidence_source에 [추정] 표기를 남겨주세요. 예:
-   "evidence_source": "[추정] SAP 표준 테이블"
+⚠ ERP-agnostic — 클라이언트가 SAP가 아닐 수 있습니다. narrative·reference_sample에서
+   드러나는 실제 테이블/필드명을 *우선* 사용. 그게 없을 때만 산업 표준 [추정].
+
+## ⭐⭐ 꼬리표(Key Trail) 추적은 transaction_trace 의 핵심
+
+화경샘 이슈: "거래 하나 흘려서 전표까지 따라가는 게 어렵다 — 중간에 키값이 계속
+달라지고, 집계·수식으로 1:1이 끊긴다."
+
+→ 거래의 **identity key** 가 각 노드에서 어떻게 바뀌고, 다음 노드로 어떻게
+   연결되는지를 *반드시* 명시해야 감사인이 CAAT JOIN SQL을 만들 수 있습니다.
+
+각 노드에 다음 두 필드를 채우세요:
+   - "key_field": 그 노드에서 거래를 식별하는 컬럼.
+                  형식: "<TableName>.<ColumnName>".
+                  예: "VBAK.VBELN" / "RA_CUSTOMER_TRX_ALL.TRX_NUMBER" /
+                      "tbl_orders.order_no" / "ORDER_HDR.SO_ID"
+   - "key_value": (transaction_trace) 그 시점 키값. 예: "SO-2026-1547".
+
+그리고 다음 노드로 연결되는 메커니즘은 "linkage_to_next" 객체에:
+   {
+     "via_table":   "<변환·매핑이 일어나는 테이블. SAP=VBFA / 클라이언트=custom_link>",
+     "join_logic":  "<SQL JOIN 조건. 예: 'VBFA.VBELV = VBAK.VBELN'>",
+     "transform_type": "1:1 | 1:N | N:1 | N:M | aggregate | formula",
+     "breaks_lineage": true if 1:1 추적이 깨짐 (집계·수식·N:M JOIN),
+     "note": "<한 줄 설명. 예: '환율 적용으로 금액 변환'>"
+   }
+
+⭐ **breaks_lineage = true 인 지점은 감사 표본 추출의 가장 위험 구간**.
+   집계(N→1) / 수식 변환 / 키 재발급 / 외부 시스템 인터페이스 → 모두 breaks=true.
 
 ## JSON Schema (strict)
 
@@ -471,10 +498,20 @@ label_ko 또는 evidence_source에 [추정] 표기를 남겨주세요. 예:
       "shape": "process | decision | data_store | document | manual_step | round | hexagon",
       "cls":   "automated | manual | control | risk | (빈 문자열)",
       "evidence_source": "<'narrative §3-(B)' / 'vision: <file> §<index>' / '[추정] SAP 표준'>",
-      "system": "<예: 'SAP S/4HANA', 'Oracle EBS', '자체 OMS', 'PG(KCP)'. 모르면 빈 문자열>",
-      "tables": ["<실제 테이블/엔티티명. 예: VBAK, KNKK, BSEG>"],
+      "system": "<예: 'SAP S/4HANA', 'Oracle EBS', '자체 OMS', 'PG(KCP)', 'Mainframe DB2', 'AS/400'. 모르면 빈 문자열>",
+      "tables": ["<실제 테이블/엔티티명 — 클라이언트 환경 기준. SAP/Oracle/legacy 무관>"],
       "data_action": "READ | INSERT | UPDATE | DELETE | TRIGGER | POST | (빈 문자열)",
-      "sample_value": "<transaction_trace에서만 — 그 시점 거래값. 예: 'SO-2026-1547 ₩11M'>"
+      "sample_value": "<transaction_trace 그 시점 거래값. 예: 'SO-2026-1547 ₩11M'>",
+
+      "key_field":  "<거래 식별 컬럼. 'Table.Column' 형식. 예: 'VBAK.VBELN' / 'tbl_orders.order_no'>",
+      "key_value":  "<그 시점 키값. 예: 'SO-2026-1547'>",
+      "linkage_to_next": {
+        "via_table":      "<변환·매핑 테이블. SAP=VBFA / 클라이언트=custom_link / 빈 문자열 가능>",
+        "join_logic":     "<SQL JOIN 조건. 예: 'VBFA.VBELV = VBAK.VBELN'>",
+        "transform_type": "1:1 | 1:N | N:1 | N:M | aggregate | formula",
+        "breaks_lineage": false,
+        "note":           "<한 줄 설명>"
+      }
     }
   ],
   "edges": [

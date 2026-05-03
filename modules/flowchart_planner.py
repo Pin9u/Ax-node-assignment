@@ -52,20 +52,42 @@ class PlanLane:
 
 
 @dataclass
+class KeyLinkage:
+    """How the transaction's identity carries (or transforms) to the next node.
+
+    This is the *꼬리표* (key trail) that auditors must follow end-to-end.
+    Designed to be ERP-agnostic — works for SAP (VBFA), Oracle (interface
+    tables), MSSQL, mainframe DB2, custom legacy systems, even Excel-based.
+    The LLM picks ``via_table`` and ``join_logic`` from whatever the client
+    actually uses, with ``[추정]`` markers for industry-typical fallbacks.
+    """
+    via_table:      str = ""    # 변환·매핑 일어나는 테이블 (VBFA, custom_link, …)
+    join_logic:     str = ""    # SQL JOIN 조건 (예: "VBFA.VBELV = VBAK.VBELN")
+    transform_type: str = "1:1" # "1:1" | "1:N" | "N:1" | "N:M" | "aggregate" | "formula"
+    breaks_lineage: bool = False  # True = 1:1 추적이 깨지는 지점 (감사 위험)
+    note: str = ""              # 1줄 설명 (예: "환율 적용 → 금액 변환")
+
+
+@dataclass
 class PlanNode:
     id: str
     lane: str
     label_ko: str
-    shape: str = "process"           # see SHAPE_DELIMS keys
-    cls: str = ""                    # automated | manual | control | risk | ""
+    shape: str = "process"
+    cls: str = ""
     evidence_source: str = ""
 
-    # NEW — transaction-trace fields. Optional for process_map mode,
-    # strongly required for transaction_trace mode.
-    system: str = ""                 # e.g., "SAP S/4HANA", "Oracle EBS", "자체 OMS"
-    tables: List[str] = field(default_factory=list)   # ["VBAK", "VBAP"]
-    data_action: str = ""            # READ | INSERT | UPDATE | DELETE | TRIGGER | POST
-    sample_value: str = ""           # e.g., "SO-2026-1547 ₩11,000,000"
+    # Transaction-trace metadata
+    system: str = ""
+    tables: List[str] = field(default_factory=list)
+    data_action: str = ""
+    sample_value: str = ""
+
+    # ⭐ Key trail (꼬리표) — what identifies the transaction at this node and
+    #    how it carries to the next node. ERP-agnostic.
+    key_field:        str = ""    # "VBAK.VBELN" / "SO_HEADER.so_id" / "tbl_orders.order_no"
+    key_value:        str = ""    # "SO-2026-1547" — 그 시점 거래값
+    linkage_to_next:  Optional["KeyLinkage"] = None
 
     @property
     def is_decision(self) -> bool:
@@ -160,6 +182,16 @@ def plan_from_json(data: Dict[str, Any]) -> FlowchartPlan:
             sequence_index=int(raw.get("sequence_index", 0) or 0),
         ))
     for raw in data.get("nodes", []) or []:
+        link_raw = raw.get("linkage_to_next") or {}
+        link = None
+        if isinstance(link_raw, dict) and (link_raw.get("via_table") or link_raw.get("join_logic")):
+            link = KeyLinkage(
+                via_table=str(link_raw.get("via_table", "")).strip(),
+                join_logic=str(link_raw.get("join_logic", "")).strip(),
+                transform_type=str(link_raw.get("transform_type", "1:1")).strip() or "1:1",
+                breaks_lineage=bool(link_raw.get("breaks_lineage", False)),
+                note=str(link_raw.get("note", "")).strip(),
+            )
         plan.nodes.append(PlanNode(
             id=str(raw.get("id", "")).strip(),
             lane=str(raw.get("lane", "")).strip(),
@@ -171,6 +203,9 @@ def plan_from_json(data: Dict[str, Any]) -> FlowchartPlan:
             tables=[str(t).strip() for t in (raw.get("tables") or []) if str(t).strip()],
             data_action=str(raw.get("data_action", "")).strip().upper(),
             sample_value=str(raw.get("sample_value", "")).strip(),
+            key_field=str(raw.get("key_field", "")).strip(),
+            key_value=str(raw.get("key_value", "")).strip(),
+            linkage_to_next=link,
         ))
     for raw in data.get("edges", []) or []:
         plan.edges.append(PlanEdge(
@@ -377,8 +412,9 @@ def _safe_label(label: str) -> str:
 
 
 def _node_rich_label(n: PlanNode) -> str:
-    """Build a multi-line node label that includes system + tables when
-    present. The auditor needs to see ``system · table`` to write CAATs."""
+    """Build a multi-line node label that includes system + tables + key
+    when present. The auditor needs to see ``system · table · key`` to
+    write CAATs and follow the transaction trail end-to-end."""
     parts: List[str] = [n.label_ko.strip() or n.id]
     meta_lines: List[str] = []
 
@@ -387,12 +423,19 @@ def _node_rich_label(n: PlanNode) -> str:
     if n.tables:
         action = f" ({n.data_action})" if n.data_action else ""
         meta_lines.append("📊 " + " · ".join(n.tables) + action)
-    if n.sample_value:
+    if n.key_field:
+        # Show the column that identifies the transaction here
+        kv = f" = {n.key_value}" if n.key_value else ""
+        meta_lines.append(f"🔑 {n.key_field}{kv}")
+    elif n.sample_value:
+        # Fallback to sample_value if no formal key_field given
         meta_lines.append(f"🔖 {n.sample_value}")
 
+    # If linkage to next is flagged as breaking 1:1 traceability, mark it
+    if n.linkage_to_next and n.linkage_to_next.breaks_lineage:
+        meta_lines.append("⚠ 다음 단계로 1:1 추적 끊김")
+
     if meta_lines:
-        # Mermaid renders <br/> as a soft line break inside a quoted label.
-        # We add a faint divider line so the metadata block visually separates.
         parts.append("━━━━━━━━━━")
         parts.extend(meta_lines)
 

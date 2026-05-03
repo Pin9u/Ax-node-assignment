@@ -31,6 +31,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from modules.audit_procedures import coverage_kpis, generate_procedures
+from modules.caat_sql_generator import generate_caat_sql, key_trail_for_ribbon
 from modules.critical_path import (
     annotate_critical_path, extract_edges, find_critical_path,
     score_lanes, score_node,
@@ -764,6 +765,13 @@ if run:
             "warnings": plan_validation.warnings if plan_validation else [],
             "info":     plan_validation.info     if plan_validation else [],
         }
+        # Stash key trail + CAAT SQL for the dashboard (transaction_trace mode).
+        if _plan is not None:
+            st.session_state["key_trail"] = key_trail_for_ribbon(_plan)
+            st.session_state["caat_sql"]  = generate_caat_sql(_plan)
+        else:
+            st.session_state["key_trail"] = []
+            st.session_state["caat_sql"]  = ""
         nodes = parse_nodes(mermaid_code)
         progress.progress(55, text=f"② 차트 생성 완료 — {len(nodes)} 노드")
 
@@ -1065,6 +1073,71 @@ if "mermaid" in st.session_state:
             f'</div>',
             unsafe_allow_html=True,
         )
+
+    # ===== Key Trail (꼬리표 추적) — transaction_trace 모드 전용 =====
+    key_trail = st.session_state.get("key_trail") or []
+    caat_sql  = st.session_state.get("caat_sql") or ""
+    if key_trail:
+        st.markdown("### 🔗 꼬리표 추적 (Key Trail)")
+        st.caption("거래의 식별 키가 단계마다 어떻게 바뀌고 어디서 끊기는지 — "
+                   "감사 표본 추출의 가장 위험한 구간을 시각화합니다.")
+        steps_html: List[str] = []
+        for i, step in enumerate(key_trail):
+            kv_disp = (html.escape(step["key_value"]) if step["key_value"]
+                       else "<i>(키값 미상)</i>")
+            kf_disp = html.escape(step["key_field"] or "")
+            sys_disp = html.escape(step["system"] or "")
+            steps_html.append(
+                f'<div class="kt-step">'
+                f'  <div class="kt-step-id">{html.escape(step["node_id"])}</div>'
+                f'  <div class="kt-step-label">{html.escape(step["label"])}</div>'
+                f'  <div class="kt-step-key">🔑 {kf_disp}</div>'
+                f'  <div class="kt-step-val">{kv_disp}</div>'
+                f'  <div class="kt-step-sys">🏛 {sys_disp}</div>'
+                f'</div>'
+            )
+            # Connector arrow with linkage info
+            if i < len(key_trail) - 1:
+                via = step["link_via"] or "직접"
+                xform = step["transform"] or ""
+                broken = step["breaks"]
+                cls = "kt-arrow-broken" if broken else "kt-arrow-ok"
+                badge = " ⚠ 끊김" if broken else ""
+                note = f" · {html.escape(step['note'])}" if step.get("note") else ""
+                steps_html.append(
+                    f'<div class="kt-arrow {cls}">'
+                    f'  <div class="kt-arrow-line"></div>'
+                    f'  <div class="kt-arrow-meta">via <b>{html.escape(via)}</b>'
+                    f'    · {html.escape(xform)}{badge}{note}</div>'
+                    f'</div>'
+                )
+        st.markdown(
+            f'<div class="key-trail-ribbon">{"".join(steps_html)}</div>',
+            unsafe_allow_html=True,
+        )
+
+        broken_steps = [s for s in key_trail if s["breaks"]]
+        if broken_steps:
+            broken_ids = ", ".join(s["node_id"] for s in broken_steps)
+            st.markdown(
+                f'<div class="kt-warn">⚠ 1:1 추적 끊김 지점: '
+                f'<b>{html.escape(broken_ids)}</b> — 감사 표본 추출 시 '
+                f'이 구간 전후 reconciliation을 별도로 검증하세요.</div>',
+                unsafe_allow_html=True,
+            )
+
+        if caat_sql:
+            with st.expander("🔍 CAAT SQL 자동 생성 (위 lineage end-to-end JOIN)"):
+                st.caption("감사인이 DB에 그대로 던질 수 있는 SQL skeleton. "
+                           "환경별 컬럼명·alias 검증 후 사용하세요.")
+                st.code(caat_sql, language="sql")
+                st.download_button(
+                    label="📥 CAAT SQL 파일로 다운로드 (.sql)",
+                    data=caat_sql.encode("utf-8"),
+                    file_name=f"caat-{html.escape(scenario_label)[:40].replace(' ','_')}.sql",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
 
     # ===== Risk Alerts (after the flow) =====
     st.markdown("### 🚨 Risk Alert System")
