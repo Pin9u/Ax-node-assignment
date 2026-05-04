@@ -697,6 +697,41 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   .kt-arrow { width: 100%; transform: rotate(90deg); margin: 8px 0; min-width: 0; }
 }
 
+/* Interview-question cards (담당자 인터뷰 가이드) */
+.iq-card {
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-left: 4px solid #6366F1;   /* indigo — interview = "ask the human" */
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow .15s ease;
+}
+.iq-card:hover { box-shadow: var(--shadow-md); }
+.iq-topic {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--pwc-black);
+  margin-bottom: 4px;
+}
+.iq-why {
+  font-size: 0.78rem;
+  color: var(--pwc-grey-5);
+  font-style: italic;
+  margin-bottom: 8px;
+  padding-left: 4px;
+  border-left: 2px solid var(--pwc-grey-3);
+}
+.iq-list {
+  margin: 4px 0 0 18px;
+  padding: 0;
+  font-size: 0.88rem;
+  color: var(--pwc-text);
+  line-height: 1.65;
+}
+.iq-list li { margin: 2px 0; word-break: keep-all; }
+
 /* Critical path summary bar (just below the flowchart) */
 .critical-path-bar {
   display: flex;

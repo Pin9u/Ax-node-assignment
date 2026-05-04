@@ -534,7 +534,19 @@ FLOWCHART_PLANNER_SYSTEM_PROMPT = """당신은 Big 4 IT 감사 walkthrough의
     ]
   },
 
-  "notes": ["<auditor-friendly 한국어 메모>"]
+  "notes": ["<auditor-friendly 한국어 메모>"],
+
+  "interview_questions": [
+    {
+      "topic":      "<무엇에 대한 질문 그룹인지. 예: '주요 테이블 식별', 'PG 연동 방식'>",
+      "why_needed": "<이 질문이 왜 필요한지 한 줄. 예: 'PG_RECON_DAILY 가 ETL 가공인지 원장인지 명시 안 됨'>",
+      "questions":  [
+        "<감사인이 클라이언트 담당자에 던질 구체 질문 1>",
+        "<질문 2>",
+        "..."
+      ]
+    }
+  ]
 }
 
 ## SHAPE 매핑 규칙 — STRICT
@@ -566,6 +578,27 @@ FLOWCHART_PLANNER_SYSTEM_PROMPT = """당신은 Big 4 IT 감사 walkthrough의
 6. **evidence_source 필수**: 모든 노드는 출처 인용.
 7. **노드 수**: process_map 12~25개 / transaction_trace 8~15개 (좁고 깊게).
 8. **유니크 id**, edge 정합성, [추정] 태그 — 모두 적용.
+
+9. ⭐⭐ **interview_questions 필수**: AI가 narrative·evidence 만으로 확신할 수 없는
+    부분은 *추측하지 말고* "감사인이 클라이언트 담당자에 던질 인터뷰 질문" 으로 변환.
+    화경샘 우려 ("주요 테이블·가공 테이블 판단은 인터뷰 필요") 를 정통으로 푸는 출력.
+
+    질문 그룹 후보 (해당되는 것은 *반드시* 출력):
+      • "주요 테이블 식별" — 가공/원장/마스터 분류 불명한 테이블에 대한 질문
+      • "키 변환 메커니즘" — linkage_to_next.via_table 추정인 경우
+      • "집계·수식 구간" — breaks_lineage=True 가 발생하는 단계의 상세
+      • "권한·SoD" — 누가 그 통제를 우회/override 가능한지
+      • "예외 경로" — narrative 에 없는 환불·취소·정정 흐름
+      • "IPE 신뢰성" — 통제가 의존하는 보고서·스프레드시트의 정확성 확보 방안
+
+    질문 작성 규칙:
+      - **클라이언트 담당자가 그대로 답할 수 있는 구체 질문**으로. 추상 X.
+      - 좋은 예: "PG_RECON_DAILY 테이블은 PG_TXN_RAW 의 ETL 가공입니까,
+                 아니면 별도 원장으로 직접 적재됩니까? 가공이라면 ETL 주기와
+                 책임자는 누구인가요?"
+      - 나쁜 예: "테이블 구조 알려주세요" (너무 추상)
+      - 한 topic 당 2~5개 질문.
+      - 정말 모든 게 명확하면 빈 배열 가능 (드물어야 함).
 
 ## Anti-hallucination
 - narrative·evidence에 없는 lane / 통제 / 시스템·테이블명 만들지 말 것.

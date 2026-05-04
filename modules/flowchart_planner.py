@@ -125,13 +125,20 @@ class JournalEntry:
 @dataclass
 class FlowchartPlan:
     process: str = ""
-    mode: str = "process_map"        # "process_map" | "transaction_trace"
+    mode: str = "process_map"
     lanes: List[PlanLane] = field(default_factory=list)
     nodes: List[PlanNode] = field(default_factory=list)
     edges: List[PlanEdge] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
     journal_entry: Optional[JournalEntry] = None
-    sample_transaction: str = ""     # human-readable seed: "고객 A · ₩11M · 2026-04-15"
+    sample_transaction: str = ""
+
+    # ⭐ Interview gaps — questions the auditor should ask the client to
+    # close uncertainty the AI couldn't resolve from narrative+evidence.
+    # 화경샘 우려 ("인터뷰로 파악해야 한다") 를 정통으로 푸는 출력.
+    interview_questions: List[Dict[str, Any]] = field(default_factory=list)
+    # Each item: {"topic": "주요 테이블 식별", "questions": ["...", "..."],
+    #             "why_needed": "PG_RECON_DAILY 가 가공인지 원장인지 불명"}
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +222,22 @@ def plan_from_json(data: Dict[str, Any]) -> FlowchartPlan:
             condition=str(raw.get("condition", "")).strip(),
         ))
     plan.notes = [str(n).strip() for n in (data.get("notes") or [])]
+
+    # interview_questions — list of {topic, questions[], why_needed}
+    iq_raw = data.get("interview_questions") or []
+    if isinstance(iq_raw, list):
+        for item in iq_raw:
+            if not isinstance(item, dict):
+                continue
+            qs = item.get("questions") or []
+            qs = [str(q).strip() for q in qs if str(q).strip()]
+            if not qs:
+                continue
+            plan.interview_questions.append({
+                "topic": str(item.get("topic", "")).strip() or "추가 확인 필요",
+                "questions": qs,
+                "why_needed": str(item.get("why_needed", "")).strip(),
+            })
 
     je_raw = data.get("journal_entry")
     if isinstance(je_raw, dict) and (je_raw.get("lines") or je_raw.get("doc_no")):
@@ -421,8 +444,22 @@ def _node_rich_label(n: PlanNode) -> str:
     if n.system:
         meta_lines.append(f"🏛 {n.system}")
     if n.tables:
+        # Pattern-classify each table and append a role badge per table
+        from .table_classifier import classify_table_role, ROLE_BADGE
         action = f" ({n.data_action})" if n.data_action else ""
-        meta_lines.append("📊 " + " · ".join(n.tables) + action)
+        labelled: List[str] = []
+        roles_seen: set = set()
+        for t in n.tables:
+            role, conf, _ = classify_table_role(t)
+            roles_seen.add(role)
+            labelled.append(t)
+        meta_lines.append("📊 " + " · ".join(labelled) + action)
+        # Add a single badges line summarising the distinct roles in this node
+        if roles_seen:
+            badges = " ".join(ROLE_BADGE.get(r, r) for r in sorted(roles_seen))
+            meta_lines.append(badges)
+        if "unknown" in roles_seen:
+            meta_lines.append("🎤 인터뷰로 분류 확인 필요")
     if n.key_field:
         # Show the column that identifies the transaction here
         kv = f" = {n.key_value}" if n.key_value else ""

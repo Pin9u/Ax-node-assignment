@@ -765,13 +765,15 @@ if run:
             "warnings": plan_validation.warnings if plan_validation else [],
             "info":     plan_validation.info     if plan_validation else [],
         }
-        # Stash key trail + CAAT SQL for the dashboard (transaction_trace mode).
+        # Stash key trail + CAAT SQL + interview questions for the dashboard
         if _plan is not None:
-            st.session_state["key_trail"] = key_trail_for_ribbon(_plan)
-            st.session_state["caat_sql"]  = generate_caat_sql(_plan)
+            st.session_state["key_trail"]    = key_trail_for_ribbon(_plan)
+            st.session_state["caat_sql"]     = generate_caat_sql(_plan)
+            st.session_state["interview_qs"] = list(_plan.interview_questions)
         else:
-            st.session_state["key_trail"] = []
-            st.session_state["caat_sql"]  = ""
+            st.session_state["key_trail"]    = []
+            st.session_state["caat_sql"]     = ""
+            st.session_state["interview_qs"] = []
         nodes = parse_nodes(mermaid_code)
         progress.progress(55, text=f"② 차트 생성 완료 — {len(nodes)} 노드")
 
@@ -1138,6 +1140,48 @@ if "mermaid" in st.session_state:
                     mime="text/plain",
                     use_container_width=True,
                 )
+
+    # ===== 인터뷰 추가 질문 (AI가 못 푼 부분 → 담당자 인터뷰 가이드) =====
+    interview_qs = st.session_state.get("interview_qs") or []
+    if interview_qs:
+        st.markdown("### 🎤 담당자 인터뷰 추가 질문")
+        st.caption("AI가 narrative·증적만으로 확신할 수 없는 부분을 클라이언트 "
+                   "담당자에게 던질 구체 질문으로 자동 변환했습니다. "
+                   "코어팀 인터뷰 들어갈 때 그대로 사용하세요.")
+        for grp in interview_qs:
+            topic = html.escape(grp.get("topic", ""))
+            why   = html.escape(grp.get("why_needed", ""))
+            qs_html = "".join(
+                f'<li>{html.escape(q)}</li>' for q in grp.get("questions", [])
+            )
+            st.markdown(
+                f'<div class="iq-card">'
+                f'  <div class="iq-topic">🎤 {topic}</div>'
+                f'  <div class="iq-why">{why}</div>'
+                f'  <ol class="iq-list">{qs_html}</ol>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        # Bundle all questions into one downloadable Markdown sheet —
+        # auditor takes it into the meeting verbatim.
+        iq_md_lines = ["# 클라이언트 담당자 인터뷰 질문지", "",
+                       "AI 자동 생성 — Samil Auto-Flow Auditor", ""]
+        for i, grp in enumerate(interview_qs, start=1):
+            iq_md_lines.append(f"## {i}. {grp.get('topic','')}")
+            if grp.get("why_needed"):
+                iq_md_lines.append(f"> 왜 필요한지: {grp['why_needed']}")
+            iq_md_lines.append("")
+            for j, q in enumerate(grp.get("questions", []), start=1):
+                iq_md_lines.append(f"  {i}.{j}  {q}")
+            iq_md_lines.append("")
+        iq_md = "\n".join(iq_md_lines)
+        st.download_button(
+            label="📥 인터뷰 질문지 다운로드 (.md — Word/Docs에 그대로 붙여넣기)",
+            data=iq_md.encode("utf-8"),
+            file_name=f"interview-questions-{html.escape(scenario_label)[:40].replace(' ','_')}.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
 
     # ===== Risk Alerts (after the flow) =====
     st.markdown("### 🚨 Risk Alert System")
