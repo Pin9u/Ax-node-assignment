@@ -36,6 +36,9 @@ from modules.critical_path import (
     annotate_critical_path, extract_edges, find_critical_path,
     score_lanes, score_node,
 )
+from modules.missing_control_detector import (
+    detect_missing_controls, heuristic_missing_controls,
+)
 from modules.flowchart_generator import FlowNode, generate_mermaid, parse_nodes
 from modules.narrative_enricher import enrich_narrative
 from modules.rcm_mapper import (
@@ -834,7 +837,27 @@ if run:
                 mapping_result = map_rcm(nodes, scoped, api_key=api_key, model=model)
             except Exception as exc:
                 st.warning(f"RCM 매핑 실패(분석은 계속 진행): {exc}")
-        progress.progress(80, text="③ RCM 매핑 완료")
+        progress.progress(78, text="③ RCM 매핑 완료")
+
+        # ── ③-e Missing Control Detection — "있어야 할 통제" 자동 설계 권고 ──
+        missing_result: Dict[str, Any] = {"missing_controls": [], "coverage_summary": {}}
+        if rcm_df is not None and not rcm_df.empty and nodes:
+            progress.progress(82, text="③-e 빠진 통제 검출·신규 설계 권고…")
+            try:
+                missing_result = detect_missing_controls(
+                    [n.to_dict() for n in nodes],
+                    mapping_result,
+                    industry=process_for_pipeline,
+                    process=process_for_pipeline,
+                    reference_sample=reference_sample,
+                    api_key=api_key, model=model,
+                )
+            except Exception as exc:
+                st.warning(f"빠진 통제 검출 실패 — 휴리스틱 fallback: {exc}")
+                missing_result = heuristic_missing_controls(
+                    [n.to_dict() for n in nodes], mapping_result,
+                )
+        st.session_state["missing_controls"] = missing_result
 
         progress.progress(85, text="④ 리스크 진단 중…")
         try:
@@ -1340,6 +1363,90 @@ if "mermaid" in st.session_state:
                             unsafe_allow_html=True)
         else:
             st.info("RCM이 제공되지 않았거나 매칭된 통제가 없습니다.")
+
+    # ===== 🔍 Missing Control Detection — 신규 통제 설계 권고 =====
+    mc = st.session_state.get("missing_controls") or {}
+    missing_list = mc.get("missing_controls") or []
+    cov = mc.get("coverage_summary") or {}
+    if missing_list or cov:
+        st.markdown("### 🔍 빠진 통제 — 신규 설계 권고")
+        if cov.get("headline_ko"):
+            st.caption(cov["headline_ko"])
+        if cov:
+            cov_cols = st.columns(5)
+            cov_cols[0].metric("총 노드", cov.get("total_nodes", "—"))
+            cov_cols[1].metric("매핑됨",  cov.get("mapped_nodes", "—"))
+            cov_cols[2].metric("Gap",     cov.get("gap_nodes", "—"))
+            cov_cols[3].metric("권고",    cov.get("missing_designs", "—"))
+            cov_cols[4].metric("High",    cov.get("high_priority", "—"))
+        for m in missing_list:
+            prio = (m.get("priority") or "").capitalize() or "Medium"
+            prio_cls = {"High": "mc-high", "Medium": "mc-med",
+                        "Low":  "mc-low"}.get(prio, "mc-med")
+            st.markdown(
+                f'<div class="mc-card {prio_cls}">'
+                f'  <div class="mc-head">'
+                f'    <span class="mc-prio">{html.escape(prio)}</span>'
+                f'    <span class="mc-node">{html.escape(m.get("node_id",""))} · '
+                f'        {html.escape(m.get("node_label",""))}</span>'
+                f'    <span class="mc-type">{html.escape(m.get("missing_type",""))}</span>'
+                f'  </div>'
+                f'  <div class="mc-what"><b>있어야 할 통제</b> · '
+                f'      {html.escape(m.get("what_should_exist",""))}</div>'
+                f'  <div class="mc-why">{html.escape(m.get("why_needed_ko",""))}</div>'
+                f'  <div class="mc-rec"><b>권고 ID</b> {html.escape(m.get("recommended_id",""))} '
+                f'      · <b>주기</b> {html.escape(m.get("expected_frequency",""))}'
+                f'      · <b>책임자</b> {html.escape(m.get("expected_owner",""))}</div>'
+                f'  <div class="mc-act">📝 {html.escape(m.get("recommended_activity_ko",""))}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Markdown export of the design-request — auditor hands it to the core team
+        if missing_list:
+            md_lines: List[str] = ["# 신규 통제 설계 권고",
+                                    "Samil Auto-Flow Auditor — Missing Control Design Request", ""]
+            if cov.get("headline_ko"):
+                md_lines.append(f"> {cov['headline_ko']}")
+                md_lines.append("")
+            md_lines.append(f"- 총 노드: {cov.get('total_nodes','—')}")
+            md_lines.append(f"- 매핑된 통제: {cov.get('mapped_nodes','—')}")
+            md_lines.append(f"- Gap: {cov.get('gap_nodes','—')}  · "
+                            f"신규 설계 권고: {cov.get('missing_designs','—')}  · "
+                            f"High Priority: {cov.get('high_priority','—')}")
+            md_lines.append("")
+            md_lines.append("| Priority | Node | 빠진 통제 유형 | 권고 ID | 주기 | 책임자 | 통제 활동 |")
+            md_lines.append("|---|---|---|---|---|---|---|")
+            for m in missing_list:
+                cells = [
+                    m.get("priority", ""),
+                    f"{m.get('node_id','')} · {m.get('node_label','')}",
+                    m.get("missing_type", ""),
+                    m.get("recommended_id", ""),
+                    m.get("expected_frequency", ""),
+                    m.get("expected_owner", ""),
+                    m.get("recommended_activity_ko", ""),
+                ]
+                cells = [str(c).replace("|", r"\|").replace("\n", " ") for c in cells]
+                md_lines.append("| " + " | ".join(cells) + " |")
+            md_lines.append("")
+            md_lines.append("## 통제별 상세 사유")
+            for m in missing_list:
+                md_lines.append(f"\n### {m.get('recommended_id','')} ({m.get('priority','')})")
+                md_lines.append(f"- **노드**: {m.get('node_id','')} · {m.get('node_label','')}")
+                md_lines.append(f"- **유형**: {m.get('missing_type','')}")
+                md_lines.append(f"- **있어야 할 통제**: {m.get('what_should_exist','')}")
+                md_lines.append(f"- **필요 사유**: {m.get('why_needed_ko','')}")
+                md_lines.append(f"- **우선순위 사유**: {m.get('rationale_ko','')}")
+                md_lines.append(f"- **권고 통제 활동**: {m.get('recommended_activity_ko','')}")
+            md_text = "\n".join(md_lines)
+            st.download_button(
+                label="📥 통제 설계 요청서 다운로드 (.md)",
+                data=md_text.encode("utf-8"),
+                file_name=f"missing-controls-{html.escape(scenario_label)[:40].replace(' ','_')}.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
 
     # Narrative is shown right under the page header (collapsed) — see above.
     # We keep the bottom area clean so the page ends on RCM mapping / gap summary.

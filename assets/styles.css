@@ -697,6 +697,58 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   .kt-arrow { width: 100%; transform: rotate(90deg); margin: 8px 0; min-width: 0; }
 }
 
+/* Missing-control cards (빠진 통제 — 신규 설계 권고) */
+.mc-card {
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-left: 5px solid var(--pwc-orange);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  font-size: 0.88rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: box-shadow .15s ease;
+}
+.mc-card:hover { box-shadow: var(--shadow-md); }
+.mc-card.mc-high { border-left-color: var(--sev-high); background: rgba(220,38,38,0.02); }
+.mc-card.mc-med  { border-left-color: var(--sev-med); }
+.mc-card.mc-low  { border-left-color: var(--sev-low); }
+.mc-head {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-bottom: 2px;
+}
+.mc-prio {
+  background: var(--pwc-grey-2);
+  color: var(--pwc-grey-5);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mc-card.mc-high .mc-prio { background: rgba(220,38,38,0.12); color: var(--sev-high); }
+.mc-card.mc-med  .mc-prio { background: rgba(217,119,6,0.10); color: var(--sev-med); }
+.mc-card.mc-low  .mc-prio { background: rgba(5,150,105,0.10); color: var(--sev-low); }
+.mc-node { font-weight: 700; color: var(--pwc-black); }
+.mc-type {
+  background: var(--pwc-orange-soft);
+  color: var(--pwc-orange-deep);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.mc-what  { color: var(--pwc-text); }
+.mc-why   { color: var(--pwc-grey-5); font-size: 0.82rem; font-style: italic; }
+.mc-rec   { color: var(--pwc-grey-5); font-size: 0.78rem;
+            background: var(--pwc-grey-2); padding: 6px 10px; border-radius: 6px; }
+.mc-act   { color: var(--pwc-black); font-size: 0.86rem; font-weight: 500;
+            border-top: 1px dashed var(--pwc-grey-3); padding-top: 6px; }
+
 /* Interview-question cards (담당자 인터뷰 가이드) */
 .iq-card {
   background: #FFFFFF;

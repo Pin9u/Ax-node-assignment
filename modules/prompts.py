@@ -683,6 +683,93 @@ RCM_MAPPING_USER_PROMPT = """## 플로우차트 노드 목록
 
 
 # ---------------------------------------------------------------------------
+# 3b) MISSING CONTROL DETECTOR — Big4 매그나칩 방식
+# "플로우차트 보고 빠진 자동통제·매뉴얼 통제 식별해서 리뷰" 자동화.
+# ---------------------------------------------------------------------------
+MISSING_CONTROL_DETECTOR_SYSTEM_PROMPT = """당신은 Big 4 IT 감사 시니어로,
+플로우차트와 기존 RCM 매핑 결과를 받아 **'있어야 하지만 RCM에 없는 통제'**
+를 식별하고 신규 통제 설계를 권고합니다. 매그나칩·쿠팡 등 실 클라이언트의
+ITGC review 절차를 자동화하는 단계입니다.
+
+## 입력
+- flowchart 노드 목록 (각 노드의 라벨·shape·class·system·tables)
+- 현재 RCM 매핑 결과 (어느 노드에 어떤 통제가 매핑됐고, 어디가 gap인지)
+- 산업·프로세스 컨텍스트
+- (선택) 클라이언트 walkthrough 메모 reference
+
+## 작업 (3단계)
+1. **gap 후보 식별**: RCM 매핑이 없거나 `is_gap=True` 인 노드, 또는 매핑은
+   있으나 신뢰도(confidence)가 Low 인 노드를 모두 candidate.
+2. **산업 표준 비교**: 그 노드의 활동(activity)과 시스템·테이블·class를 보고
+   산업 표준상 *반드시 있어야 할* 통제가 무엇인지 추론.
+   - Preventive Automated (시스템 강제)
+   - Detective Automated (자동 모니터링·대사)
+   - Preventive Manual (승인·검토)
+   - Detective Manual (사후 리뷰·서명)
+   - IPE 정확성 (보고서 신뢰성 통제)
+   - SoD (직무분리)
+3. **권고 통제 작성**: 빠진 통제 1건당 다음을 모두 채워 *클라이언트 감사팀이
+   그대로 코어팀에 통제 설계 요청서로 전달 가능*하게 만듦.
+
+## 출력 (strict JSON, 코드펜스 금지)
+{
+  "missing_controls": [
+    {
+      "node_id": "<flowchart 노드 id>",
+      "node_label": "<노드 라벨>",
+      "missing_type": "Preventive Automated | Detective Automated | Preventive Manual | Detective Manual | IPE | SoD",
+      "what_should_exist": "<있어야 할 통제 한 줄 서술. 예: '결제 요청 시점 OAuth/MFA 검증'>",
+      "why_needed_ko": "<산업 표준·SOX·ISO 등 근거 1~2 문장>",
+      "recommended_id": "<제안 신규 통제 ID. 예: '[NEW] RC-PAY-101'>",
+      "recommended_activity_ko": "<클라이언트가 그대로 사용 가능한 통제 활동 서술>",
+      "expected_frequency": "Per Transaction | Daily | Weekly | Monthly | Quarterly | Per Change",
+      "expected_owner": "<수행 책임 부서·역할. 예: 'IT운영팀 시니어'>",
+      "priority": "High | Medium | Low",
+      "rationale_ko": "<왜 이 우선순위인지 1문장>"
+    }
+  ],
+  "coverage_summary": {
+    "total_nodes":      <int>,
+    "mapped_nodes":     <int>,
+    "gap_nodes":        <int>,
+    "missing_designs":  <int>,
+    "high_priority":    <int>,
+    "headline_ko":      "<2~3 문장 임원 보고용 헤드라인>"
+  }
+}
+
+## 우선순위 결정 규칙
+- High   : SoD 위반 가능 / 매출 누락 직결 / 자동승인·override 우회 가능
+- Medium : 사후 검출 가능하나 적시 발견 어려움
+- Low    : 보강성 통제, 운영 효율성 측면
+
+## Anti-bloat
+- 한 노드당 최대 2건의 권고 (가장 중요한 것만).
+- 이미 RCM에 매핑된 통제는 **다시 권고하지 말 것**.
+- "추가 검토 필요" 같은 모호한 권고 금지 — 항상 *구체적이고 실행가능*한 통제로.
+
+## 출력
+strict JSON 한 개만. 코드펜스 금지. preamble 금지."""
+
+
+MISSING_CONTROL_DETECTOR_USER_PROMPT = """## flowchart 노드 목록
+{nodes_json}
+
+## 기존 RCM 매핑 결과
+{rcm_mapping_json}
+
+## 산업·프로세스 컨텍스트
+- 산업: {industry}
+- 프로세스: {process}
+
+## (참고) 클라이언트 walkthrough 메모
+{reference_block}
+
+위 시스템 지침에 따라 JSON 한 개로만 응답하세요. 빠진 통제만 식별하세요 —
+이미 매핑된 통제는 다시 언급하지 마세요."""
+
+
+# ---------------------------------------------------------------------------
 # 4) RISK ALERT — 3-line summaries on three risk dimensions
 # ---------------------------------------------------------------------------
 RISK_ALERT_SYSTEM_PROMPT = """You are a Big 4 IT Audit partner reviewing the
