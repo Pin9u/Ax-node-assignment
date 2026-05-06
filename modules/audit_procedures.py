@@ -172,8 +172,13 @@ def coverage_kpis(
     mapped_ids = {m.get("node_id") for m in mappings if m.get("matched_control_id")}
     n_mapped = len(mapped_ids)
     n_gaps = sum(1 for m in mappings if m.get("is_gap"))
+    # Only count confidence for mappings that ACTUALLY matched a control —
+    # gap rows otherwise pollute the High% metric and make a 75% honest
+    # match-quality look like 43%.
     conf = {"High": 0, "Medium": 0, "Low": 0}
     for m in mappings:
+        if not m.get("matched_control_id"):
+            continue
         c = (m.get("confidence") or "").capitalize()
         if c in conf:
             conf[c] += 1

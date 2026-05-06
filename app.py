@@ -1111,7 +1111,6 @@ if "mermaid" in st.session_state:
             f'<div class="critical-path-bar">'
             f'  <span class="cp-label">🔴 Critical Path</span>'
             f'  <span class="cp-chain">{" → ".join(html.escape(x) for x in crit_labels)}</span>'
-            f'  <span class="cp-score">Risk Score · {crit.score}</span>'
             f'</div>',
             unsafe_allow_html=True,
         )

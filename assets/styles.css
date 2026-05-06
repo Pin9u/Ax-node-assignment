@@ -312,7 +312,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   border: 1px solid var(--pwc-grey-3);
   border-radius: 14px;
   padding: 20px 22px 22px 26px;
-  margin-bottom: 0;
+  margin-bottom: 14px;     /* ← unified card rhythm */
   position: relative;
   box-shadow: var(--shadow-sm);
   transition: all 0.18s ease;
@@ -409,7 +409,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   border: 1px solid var(--pwc-grey-3);
   border-radius: 12px;
   padding: 20px 24px;
-  margin-bottom: 14px;
+  margin-bottom: 14px;      /* unified card rhythm */
   box-shadow: var(--shadow-sm);
 }
 .audit-card h4 {
@@ -425,8 +425,8 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin: 0.25rem 0 1.25rem 0;
+  gap: 14px;                /* unified */
+  margin: 0.25rem 0 14px 0; /* unified */
 }
 .kpi-tile {
   background: #FFFFFF;
@@ -498,7 +498,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   border-left: 4px solid var(--pwc-orange);
   border-radius: 10px;
   padding: 14px 16px;
-  margin: 8px 0 12px 0;
+  margin: 0 0 14px 0;       /* unified */
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
@@ -592,7 +592,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   flex-wrap: wrap;
   gap: 8px;
   align-items: stretch;
-  margin: 12px 0 8px 0;
+  margin: 0 0 14px 0;       /* unified */
   padding: 14px;
   background: #FFFFFF;
   border: 1px solid var(--pwc-grey-3);
@@ -684,7 +684,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 }
 .kt-arrow-broken .kt-arrow-meta { color: var(--sev-high); font-weight: 600; }
 .kt-warn {
-  margin: 8px 0 24px 0;     /* breathing room before the CAAT expander */
+  margin: 0 0 14px 0;       /* unified */
   padding: 10px 14px;
   background: rgba(220, 38, 38, 0.06);
   border: 1px solid rgba(220, 38, 38, 0.30);
@@ -744,7 +744,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   border-left: 5px solid var(--pwc-orange);
   border-radius: 10px;
   padding: 14px 18px;
-  margin-bottom: 10px;
+  margin-bottom: 14px;      /* unified card rhythm */
   box-shadow: var(--shadow-sm);
   font-size: 0.88rem;
   display: flex;
@@ -796,7 +796,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   border-left: 4px solid #6366F1;   /* indigo — interview = "ask the human" */
   border-radius: 10px;
   padding: 14px 18px;
-  margin-bottom: 10px;
+  margin-bottom: 14px;      /* unified card rhythm */
   box-shadow: var(--shadow-sm);
   transition: box-shadow .15s ease;
 }
@@ -830,7 +830,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin: 12px 0 8px 0;
+  margin: 14px 0;           /* unified */
   padding: 12px 16px;
   background: linear-gradient(90deg, rgba(220,38,38,0.06) 0%, rgba(220,38,38,0.02) 100%);
   border: 1px solid rgba(220, 38, 38, 0.25);
