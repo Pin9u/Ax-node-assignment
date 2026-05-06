@@ -1131,13 +1131,15 @@ if "mermaid" in st.session_state:
             kv  = (step.get("key_value") or "").strip()
             sys_disp = html.escape(step.get("system") or "")
 
-            # Combined key line — field = value, or field · 관리 액션 if no value
+            # Two-row key block — field on top, value below — keeps long
+            # values from wrapping mid-string and breaks the column name
+            # cleanly from the value chip.
             if kf and kv:
                 key_html = (
-                    f'<div class="kt-step-key">🔑 '
-                    f'<span class="kf">{html.escape(kf)}</span>'
-                    f' <span class="kv-eq">=</span> '
-                    f'<span class="kv">{html.escape(kv)}</span>'
+                    f'<div class="kt-step-key">'
+                    f'  <div class="kt-key-row1">🔑 <span class="kf">{html.escape(kf)}</span></div>'
+                    f'  <div class="kt-key-row2"><span class="kv-eq">=</span> '
+                    f'<span class="kv">{html.escape(kv)}</span></div>'
                     f'</div>'
                 )
             elif kf:
