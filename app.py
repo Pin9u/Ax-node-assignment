@@ -929,46 +929,11 @@ if run:
 # ---------------------------------------------------------------------------
 # Render results (from session state so reruns stay snappy)
 # ---------------------------------------------------------------------------
-if st.session_state.pop("_scroll_to_top", False):
-    # nonce makes the HTML unique per run — Streamlit otherwise dedupes
-    # identical components.v1.html iframes and the script never re-fires
-    # on the 2nd+ scenario load.
-    _nonce = uuid.uuid4().hex
-    st.components.v1.html(
-        f"""
-        <div data-scroll-nonce="{_nonce}" style="display:none"></div>
-        <script>
-          (function() {{
-            const NONCE = "{_nonce}";
-            const doScroll = () => {{
-              try {{ window.parent.scrollTo({{ top: 0, behavior: 'instant' }}); }} catch (e) {{}}
-              try {{ window.scrollTo(0, 0); }} catch (e) {{}}
-              const doc = (window.parent && window.parent.document) || document;
-              try {{ if (doc.scrollingElement) doc.scrollingElement.scrollTop = 0; }} catch (e) {{}}
-              try {{ doc.documentElement.scrollTop = 0; doc.body.scrollTop = 0; }} catch (e) {{}}
-              const sels = [
-                'section.main', '[data-testid="stAppViewContainer"]',
-                '[data-testid="stMain"]', '.main .block-container',
-                '[data-testid="ScrollToBottomContainer"]'
-              ];
-              for (const sel of sels) {{
-                try {{
-                  const el = doc.querySelector(sel);
-                  if (el) el.scrollTop = 0;
-                }} catch (e) {{}}
-              }}
-            }};
-            doScroll();
-            requestAnimationFrame(doScroll);
-            setTimeout(doScroll, 50);
-            setTimeout(doScroll, 200);
-            setTimeout(doScroll, 600);
-            console.debug('[samil] scroll-to-top fired', NONCE);
-          }})();
-        </script>
-        """,
-        height=0,
-    )
+# Pop the scroll flag now, but DEFER the iframe injection to the very
+# end of the page — components.v1.html with height=0 still adds a
+# ~200 px Streamlit block wrapper on mobile, which would otherwise
+# push the dashboard header off-screen.
+_should_scroll_to_top = bool(st.session_state.pop("_scroll_to_top", False))
 
 if "mermaid" in st.session_state:
     findings = st.session_state["findings"]
@@ -1575,4 +1540,45 @@ else:
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scroll-to-top side-effect (placed at the very end so the iframe wrapper
+# Streamlit adds doesn't push real content out of the viewport on mobile).
+# ---------------------------------------------------------------------------
+if _should_scroll_to_top:
+    _nonce = uuid.uuid4().hex
+    st.components.v1.html(
+        f"""
+        <script>
+          (function() {{
+            const NONCE = "{_nonce}";
+            const doScroll = () => {{
+              try {{ window.parent.scrollTo({{ top: 0, behavior: 'instant' }}); }} catch (e) {{}}
+              try {{ window.scrollTo(0, 0); }} catch (e) {{}}
+              const doc = (window.parent && window.parent.document) || document;
+              try {{ if (doc.scrollingElement) doc.scrollingElement.scrollTop = 0; }} catch (e) {{}}
+              try {{ doc.documentElement.scrollTop = 0; doc.body.scrollTop = 0; }} catch (e) {{}}
+              const sels = [
+                'section.main', '[data-testid="stAppViewContainer"]',
+                '[data-testid="stMain"]', '.main .block-container',
+              ];
+              for (const sel of sels) {{
+                try {{
+                  const el = doc.querySelector(sel);
+                  if (el) el.scrollTop = 0;
+                }} catch (e) {{}}
+              }}
+            }};
+            doScroll();
+            requestAnimationFrame(doScroll);
+            setTimeout(doScroll, 50);
+            setTimeout(doScroll, 200);
+            setTimeout(doScroll, 600);
+            console.debug('[samil] scroll-to-top fired', NONCE);
+          }})();
+        </script>
+        """,
+        height=1,
     )
