@@ -57,5 +57,368 @@
     "sod": "🚨 **EAC 변경자 = EAC_REVIEW 우회 토글러 동일 (PM 5명)**\n발견 근거: 인터뷰 §4-ⓓ.\n권고: GRC 충돌룰 + 재무 2단 승인 강제.",
     "manual": "🚨 **VO Catch-up 회계 검증 부재 + Onerous 단독 분개**\n발견 근거: 인터뷰 §3-(C), §4-ⓒ.\n권고: VO_ADJ 회계팀 재계산 100% 인용 + Onerous CFO 서명 강제.",
     "overall_severity": "High"
+  },
+  "plan": {
+    "process": "EPC 진행률 매출 (해외 건설)",
+    "mode": "transaction_trace",
+    "sample_transaction": "프로젝트 PRJ-2026-001 · 4월 ACTUAL_COST ₩2.94B · POC 35% · 인식매출 ₩8.4B",
+    "lanes": [
+      {
+        "id": "FLD",
+        "label_ko": "🏗️ 현장 (FIELD)",
+        "sequence_index": 0
+      },
+      {
+        "id": "PMO",
+        "label_ko": "⚙ PMO / EPC_PMS",
+        "sequence_index": 1
+      },
+      {
+        "id": "EST",
+        "label_ko": "📊 ESTIMATE / RISK",
+        "sequence_index": 2
+      },
+      {
+        "id": "ACCT",
+        "label_ko": "💰 ERP GL",
+        "sequence_index": 3
+      }
+    ],
+    "nodes": [
+      {
+        "id": "F1",
+        "lane": "FLD",
+        "label_ko": "현장 ACTUAL_COST 입력",
+        "shape": "process",
+        "cls": "manual",
+        "system": "현장 단말 (EPC_PMS)",
+        "tables": [
+          "actual_cost_posting"
+        ],
+        "data_action": "INSERT",
+        "key_field": "actual_cost_posting.posting_id",
+        "key_value": "ACP-2026-04-PRJ001",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "project",
+          "join_logic": "actual_cost_posting.project_id = project.project_id",
+          "transform_type": "1:1",
+          "breaks_lineage": false
+        }
+      },
+      {
+        "id": "F2",
+        "lane": "FLD",
+        "label_ko": "Estimate Accrual 누적",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "EPC_PMS",
+        "tables": [
+          "estimate_accrual"
+        ],
+        "data_action": "INSERT",
+        "key_field": "estimate_accrual.accrual_id",
+        "evidence_source": "narrative §3-(A)"
+      },
+      {
+        "id": "P1",
+        "lane": "PMO",
+        "label_ko": "PROJECT 마스터",
+        "shape": "data_store",
+        "cls": "automated",
+        "system": "EPC_PMS",
+        "tables": [
+          "project",
+          "wbs",
+          "budget_cost"
+        ],
+        "data_action": "READ",
+        "key_field": "project.project_id",
+        "key_value": "PRJ-2026-001",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "P2",
+        "lane": "PMO",
+        "label_ko": "EAC ±2% 변경?",
+        "shape": "decision",
+        "cls": "control",
+        "system": "EPC_PMS",
+        "tables": [
+          "eac_history"
+        ],
+        "data_action": "READ",
+        "key_field": "eac_history.eac_id",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "P3",
+        "lane": "PMO",
+        "label_ko": "Minor 옵션으로 워크플로 우회",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "EPC_PMS",
+        "tables": [
+          "eac_history",
+          "eac_review_log"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "eac_history.review_flag",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "P4",
+        "lane": "PMO",
+        "label_ko": "POC = AC / EAC",
+        "shape": "process",
+        "cls": "control",
+        "system": "EPC_PMS",
+        "tables": [
+          "poc_calc",
+          "revenue_line"
+        ],
+        "data_action": "INSERT",
+        "key_field": "poc_calc.calc_id",
+        "key_value": "POC-2026-04-PRJ001",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "E1",
+        "lane": "EST",
+        "label_ko": "VO Catch-up 재계산",
+        "shape": "process",
+        "cls": "control",
+        "system": "EPC_PMS",
+        "tables": [
+          "vo_change_order",
+          "vo_adjustment"
+        ],
+        "data_action": "INSERT",
+        "key_field": "vo_adjustment.vo_id",
+        "key_value": "VO-2026-04-PRJ001-A",
+        "evidence_source": "narrative §3-(C)"
+      },
+      {
+        "id": "E2",
+        "lane": "EST",
+        "label_ko": "사업관리 단독 검토",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "EPC_PMS",
+        "tables": [
+          "vo_adjustment"
+        ],
+        "data_action": "UPDATE",
+        "evidence_source": "narrative §3-(C)"
+      },
+      {
+        "id": "A1",
+        "lane": "ACCT",
+        "label_ko": "누적·당월 매출 인식",
+        "shape": "process",
+        "cls": "automated",
+        "system": "ERP GL",
+        "tables": [
+          "gl_journal"
+        ],
+        "data_action": "POST",
+        "key_field": "gl_journal.je_doc_no",
+        "key_value": "JE-2026-04-EPC-PRJ001",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "gl_journal",
+          "join_logic": "Onerous 보정 분개",
+          "transform_type": "formula",
+          "breaks_lineage": true,
+          "note": "VO Catch-up + Onerous 보정 시 1:1 끊김"
+        }
+      },
+      {
+        "id": "A2",
+        "lane": "ACCT",
+        "label_ko": "Onerous 단독 분개",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "ERP GL",
+        "tables": [
+          "gl_journal"
+        ],
+        "data_action": "POST",
+        "evidence_source": "narrative §4-ⓒ"
+      }
+    ],
+    "edges": [
+      {
+        "from_id": "F1",
+        "to_id": "P1"
+      },
+      {
+        "from_id": "F2",
+        "to_id": "F1"
+      },
+      {
+        "from_id": "P1",
+        "to_id": "P2"
+      },
+      {
+        "from_id": "P2",
+        "to_id": "P3",
+        "condition": "이탈"
+      },
+      {
+        "from_id": "P2",
+        "to_id": "P4",
+        "condition": "Minor"
+      },
+      {
+        "from_id": "P4",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "E1",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "E2",
+        "to_id": "E1"
+      },
+      {
+        "from_id": "A1",
+        "to_id": "A2"
+      }
+    ],
+    "journal_entry": {
+      "doc_no": "JE-2026-04-EPC-PRJ001",
+      "posting_date": "2026-04-30",
+      "system": "ERP GL",
+      "tables": [
+        "gl_journal",
+        "gl_journal_line"
+      ],
+      "lines": [
+        {
+          "side": "Dr",
+          "account": "공사미수금",
+          "amount": "₩9,240,000,000"
+        },
+        {
+          "side": "Cr",
+          "account": "공사매출",
+          "amount": "₩8,400,000,000",
+          "memo": "POC 35% 인식"
+        },
+        {
+          "side": "Cr",
+          "account": "VAT 예수금",
+          "amount": "₩  840,000,000"
+        }
+      ]
+    },
+    "interview_questions": [
+      {
+        "topic": "Estimate Accrual 누적 차이 모니터링",
+        "why_needed": "추정원가 누적이 정산되지 않으면 매출 왜곡",
+        "questions": [
+          "estimate_accrual 추정-실제 차이의 일별 모니터링·경고 절차가 있나요?",
+          "차이 누적치 임계값 초과 시 누가 알람을 받고 어떻게 해소하나요?"
+        ]
+      },
+      {
+        "topic": "EAC Minor 옵션 우회",
+        "why_needed": "PMO 가 Minor 토글로 EAC_REVIEW 우회 가능 — 매출 통제 우회",
+        "questions": [
+          "Minor 옵션 사용 시 PMO+재무 2단 승인이 시스템적으로 강제되나요?",
+          "Minor 토글 이력의 분기 사후 검토 절차는?"
+        ]
+      },
+      {
+        "topic": "VO Catch-up 재계산 검증",
+        "why_needed": "사업관리 단독 검토 — 누적 매출 재계산 회계 검증 부재",
+        "questions": [
+          "VO_ADJUSTMENT 라인의 회계팀 재계산·서명 절차는?",
+          "VO 발생 시 누적 매출 catch-up 의 자동/수동 분개 분리 여부는?"
+        ]
+      },
+      {
+        "topic": "Onerous 충당금 분개",
+        "why_needed": "재무팀 단독 등록 — 손실예상 분개는 매출 차감 직결",
+        "questions": [
+          "Onerous 충당금 분개를 매월 CFO 가 어떤 양식으로 검토·서명하나요?",
+          "Onerous 판정 모형의 외부감사 통보 절차는?"
+        ]
+      }
+    ]
+  },
+  "missing_controls": {
+    "missing_controls": [
+      {
+        "node_id": "F2",
+        "node_label": "Estimate Accrual 누적",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "추정-실제 차이 일별 모니터링 + 임계값 알람",
+        "why_needed_ko": "추정원가 누적이 정산되지 않으면 POC·매출 왜곡 직결",
+        "recommended_id": "[ACTIVATE] RC-EPC-001",
+        "recommended_activity_ko": "estimate_accrual 일배치로 추정-실제 차이 산출 + 임계값 초과 시 PMO·재무 동시 알림",
+        "expected_frequency": "Daily",
+        "expected_owner": "PMO + 재무팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "P3",
+        "node_label": "Minor 옵션으로 워크플로 우회",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "Minor 토글 시 PMO+재무 2단 승인 강제",
+        "why_needed_ko": "EAC 변경 통제 우회 = 매출 인식 통제 결정적 결함",
+        "recommended_id": "[ACTIVATE] RC-EPC-002",
+        "recommended_activity_ko": "Minor 옵션 사용 시 PMO·재무 2단 승인 시스템 강제 + 분기 사후 검토",
+        "expected_frequency": "Per Change",
+        "expected_owner": "PMO + 재무팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "E2",
+        "node_label": "사업관리 단독 검토",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "회계팀이 VO_ADJ 라인 재계산 검증 서명",
+        "why_needed_ko": "VO Catch-up 누적 매출 재계산 — 사업관리 단독으론 SOX 부족",
+        "recommended_id": "[ACTIVATE] RC-EPC-003",
+        "recommended_activity_ko": "VO_ADJUSTMENT 발생 시 회계팀이 누적 매출 재계산 검증 후 서명",
+        "expected_frequency": "Per VO",
+        "expected_owner": "회계팀",
+        "priority": "Medium"
+      },
+      {
+        "node_id": "A2",
+        "node_label": "Onerous 단독 분개",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "Onerous 분개 CFO 전수 검토 + 외부감사 통보",
+        "why_needed_ko": "Onerous 판정 = 매출 차감 직결 — IFRS15 §44 핵심",
+        "recommended_id": "[ACTIVATE] RC-EPC-004",
+        "recommended_activity_ko": "월별 Onerous 분개 100% CFO 시스템 서명 + 분기 외부감사 통보",
+        "expected_frequency": "Monthly",
+        "expected_owner": "재무팀 + CFO + 외부감사",
+        "priority": "High"
+      },
+      {
+        "node_id": "A1",
+        "node_label": "누적·당월 매출 인식",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "POC 자동 산정 결과 vs 회계팀 재계산 자동 대사",
+        "why_needed_ko": "Onerous·VO 보정 결합 시 1:1 끊김 — reconciliation 필수",
+        "recommended_id": "[NEW] RC-EPC-POC-RECON-01",
+        "recommended_activity_ko": "월말 poc_calc 결과 vs 회계팀 재계산 결과 자동 대사 + 차이 시 알림",
+        "expected_frequency": "Monthly",
+        "expected_owner": "회계팀 + PMO",
+        "priority": "Medium"
+      }
+    ],
+    "coverage_summary": {
+      "total_nodes": 10,
+      "mapped_nodes": 4,
+      "gap_nodes": 4,
+      "missing_designs": 5,
+      "high_priority": 3,
+      "headline_ko": "EPC 진행률 매출 10개 노드 중 4개 매핑·4개 공백. Estimate Accrual 모니터링·Minor 토글 차단·Onerous CFO 서명 즉시 가동 필요."
+    }
   }
 }

@@ -94,5 +94,382 @@
     "sod": "🚨 **모형 파라미터 변경자 = 결과 검증자 동일**\n발견 근거: 인터뷰 §4-ⓓ.\n권고: ACTUARIAL_RULE 메이커-체커 + 외부감사 통보 의무화 — Inspection.",
     "manual": "🚨 **Locked-in vs Current 재량 선택 + Onerous 단독 분개**\n발견 근거: 인터뷰 §3-(C), §4-ⓒ.\n권고: 사유·증빙 첨부 강제 + CFO 전수 inspection.",
     "overall_severity": "High"
+  },
+  "plan": {
+    "process": "보험료수익 (생명보험 IFRS17)",
+    "mode": "transaction_trace",
+    "sample_transaction": "신계약 PA-2026-9981 · 효력 2026-04-15 · 월 보험료 ₩50,000 · GMM Group GP-2026-04",
+    "lanes": [
+      {
+        "id": "CHAN",
+        "label_ko": "👤 채널 (설계사)",
+        "sequence_index": 0
+      },
+      {
+        "id": "CORE",
+        "label_ko": "⚙ 계약관리시스템",
+        "sequence_index": 1
+      },
+      {
+        "id": "ACT",
+        "label_ko": "📊 IFRS17 보험계리",
+        "sequence_index": 2
+      },
+      {
+        "id": "ACCT",
+        "label_ko": "💰 결산 GL",
+        "sequence_index": 3
+      }
+    ],
+    "nodes": [
+      {
+        "id": "H1",
+        "lane": "CHAN",
+        "label_ko": "청약 입력",
+        "shape": "process",
+        "cls": "manual",
+        "system": "GA/설계사 단말",
+        "tables": [
+          "policy_application"
+        ],
+        "data_action": "INSERT",
+        "key_field": "policy_application.appl_no",
+        "key_value": "PA-2026-9981",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "policy",
+          "join_logic": "policy.appl_no = policy_application.appl_no",
+          "transform_type": "1:1",
+          "breaks_lineage": false,
+          "note": "인수심사 후 효력 발생"
+        }
+      },
+      {
+        "id": "H2",
+        "lane": "CHAN",
+        "label_ko": "인수심사",
+        "shape": "process",
+        "cls": "control",
+        "system": "Underwriting Engine",
+        "tables": [
+          "uw_decision"
+        ],
+        "data_action": "INSERT",
+        "key_field": "uw_decision.decision_id",
+        "key_value": "UW-2026-9981",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "C1",
+        "lane": "CORE",
+        "label_ko": "POLICY 마스터",
+        "shape": "data_store",
+        "cls": "automated",
+        "system": "계약관리시스템",
+        "tables": [
+          "policy"
+        ],
+        "data_action": "INSERT",
+        "key_field": "policy.policy_no",
+        "key_value": "POL-2026-04-998817",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "C2",
+        "lane": "CORE",
+        "label_ko": "자동이체 → 효력",
+        "shape": "process",
+        "cls": "automated",
+        "system": "계약관리시스템",
+        "tables": [
+          "policy_premium_line",
+          "pg_bank_receipt"
+        ],
+        "data_action": "INSERT",
+        "key_field": "policy_premium_line.line_id",
+        "key_value": "PPL-2026-04-998817",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "C3",
+        "lane": "CORE",
+        "label_ko": "30/60일 유예 단독승인",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "계약관리시스템",
+        "tables": [
+          "late_payment"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "late_payment.policy_no",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "A1",
+        "lane": "ACT",
+        "label_ko": "Coverage Unit 산정",
+        "shape": "process",
+        "cls": "control",
+        "system": "IFRS17 모형",
+        "tables": [
+          "actuarial_rule",
+          "cu_calc"
+        ],
+        "data_action": "INSERT",
+        "key_field": "cu_calc.calc_id",
+        "key_value": "CU-2026-04-GP04",
+        "evidence_source": "vision: actuarial_rules §1",
+        "linkage_to_next": {
+          "via_table": "csm_group",
+          "join_logic": "csm_group.cu_calc_id = cu_calc.calc_id",
+          "transform_type": "N:1",
+          "breaks_lineage": true,
+          "note": "Group 단위 집계 — 개별 정책 추적 끊김"
+        }
+      },
+      {
+        "id": "A2",
+        "lane": "ACT",
+        "label_ko": "ACTUARIAL_RULE 단독 변경",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "IFRS17 모형 어드민",
+        "tables": [
+          "actuarial_rule",
+          "actuarial_rule_hist"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "actuarial_rule.rule_id",
+        "evidence_source": "vision: actuarial_rules §3"
+      },
+      {
+        "id": "A3",
+        "lane": "ACT",
+        "label_ko": "CSM 상각",
+        "shape": "process",
+        "cls": "control",
+        "system": "IFRS17 모형",
+        "tables": [
+          "csm_group",
+          "booked_revenue"
+        ],
+        "data_action": "INSERT",
+        "key_field": "csm_group.group_id",
+        "key_value": "CSM-2026-04-GP04",
+        "evidence_source": "narrative §3-(C)"
+      },
+      {
+        "id": "A4",
+        "lane": "ACT",
+        "label_ko": "Locked-in vs Current 임의선택",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "IFRS17 모형 어드민",
+        "tables": [
+          "actuarial_rule"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "actuarial_rule.curve_type",
+        "evidence_source": "narrative §3-(C)"
+      },
+      {
+        "id": "G1",
+        "lane": "ACCT",
+        "label_ko": "BOOKED_REVENUE 인식",
+        "shape": "process",
+        "cls": "automated",
+        "system": "결산 GL",
+        "tables": [
+          "gl_journal"
+        ],
+        "data_action": "POST",
+        "key_field": "gl_journal.je_doc_no",
+        "key_value": "JE-2026-04-INS-A04",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "G2",
+        "lane": "ACCT",
+        "label_ko": "Onerous 단독 분개",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "결산 GL",
+        "tables": [
+          "gl_journal"
+        ],
+        "data_action": "POST",
+        "evidence_source": "narrative §4-ⓒ"
+      }
+    ],
+    "edges": [
+      {
+        "from_id": "H1",
+        "to_id": "H2"
+      },
+      {
+        "from_id": "H2",
+        "to_id": "C1"
+      },
+      {
+        "from_id": "C1",
+        "to_id": "C2"
+      },
+      {
+        "from_id": "C2",
+        "to_id": "C3"
+      },
+      {
+        "from_id": "C2",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "A2",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "A1",
+        "to_id": "A3"
+      },
+      {
+        "from_id": "A4",
+        "to_id": "A3"
+      },
+      {
+        "from_id": "A3",
+        "to_id": "G1"
+      },
+      {
+        "from_id": "G1",
+        "to_id": "G2"
+      }
+    ],
+    "journal_entry": {
+      "doc_no": "JE-2026-04-INS-A04",
+      "posting_date": "2026-04-30",
+      "system": "결산 GL",
+      "tables": [
+        "gl_journal",
+        "gl_journal_line"
+      ],
+      "lines": [
+        {
+          "side": "Dr",
+          "account": "보험계약부채(LRC)",
+          "amount": "₩48,000,000",
+          "memo": "월 CSM 상각 + RA 해소"
+        },
+        {
+          "side": "Cr",
+          "account": "보험수익",
+          "amount": "₩48,000,000"
+        }
+      ]
+    },
+    "interview_questions": [
+      {
+        "topic": "유예 보험료 모니터링",
+        "why_needed": "30/60일 유예 단독승인 — 미수보험료 매출 회복 절차 불명",
+        "questions": [
+          "30·60일 유예 만료건의 일별 모니터링 보고서가 있나요?",
+          "유예 후 실효처리·매출 차감 timing 이 narrative와 일치하나요?"
+        ]
+      },
+      {
+        "topic": "ACTUARIAL_RULE 변경 SoD",
+        "why_needed": "보험계리팀 시니어가 룰 변경·검증 동시 보유 가능성",
+        "questions": [
+          "actuarial_rule 변경 시 메이커-체커가 시스템적으로 강제되나요?",
+          "Coverage Unit 산정 룰 변경 시 외부감사인 통보 절차는?"
+        ]
+      },
+      {
+        "topic": "Locked-in vs Current 재량 가정변경",
+        "why_needed": "할인율 곡선 임의 전환 — 매출 인식 시점·금액 즉시 영향",
+        "questions": [
+          "Locked-in → Current 전환 시 사유·증빙 첨부가 시스템적으로 강제되나요?",
+          "전환 후 재산출 결과를 누가 검증·서명하나요?"
+        ]
+      },
+      {
+        "topic": "Onerous 분개 사후 검토",
+        "why_needed": "보험계리팀 단독 등록 — CFO 서명 운영 형태 불명",
+        "questions": [
+          "Onerous Group 전환 분개를 CFO가 어떤 양식으로 전수 검토하나요?",
+          "전환 사유 인용 증빙은 어디에 보관되나요?"
+        ]
+      }
+    ]
+  },
+  "missing_controls": {
+    "missing_controls": [
+      {
+        "node_id": "C3",
+        "node_label": "30/60일 유예 단독승인",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "유예 만료건 일별 모니터링 + 경고",
+        "why_needed_ko": "유예 미수보험료 → 매출 회복 누락 위험",
+        "recommended_id": "[ACTIVATE] RC-INS-002",
+        "recommended_activity_ko": "late_payment 30/60일 만료건을 일배치로 식별 → 영업관리·재무 동시 알림 + 일별 sign-off",
+        "expected_frequency": "Daily",
+        "expected_owner": "영업관리팀 + 재무팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "A2",
+        "node_label": "ACTUARIAL_RULE 단독 변경",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "ACTUARIAL_RULE 메이커-체커 + 외부감사 통보",
+        "why_needed_ko": "Coverage Unit 산정 룰 = 매출 인식 핵심 — IFRS17 통제 결정",
+        "recommended_id": "[ACTIVATE] RC-INS-001",
+        "recommended_activity_ko": "actuarial_rule 변경 시 메이커(보험계리)·체커(결산) 2단 + 분기 외부감사 통보",
+        "expected_frequency": "Per Change",
+        "expected_owner": "보험계리 + 결산 + 외부감사",
+        "priority": "High"
+      },
+      {
+        "node_id": "A4",
+        "node_label": "Locked-in vs Current 임의선택",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "재량적 가정 변경 사유·증빙 첨부 강제 + 검토",
+        "why_needed_ko": "할인율 곡선 임의 전환 — 매출 인식 시점·금액 즉시 영향",
+        "recommended_id": "[ACTIVATE] RC-INS-003",
+        "recommended_activity_ko": "Locked-in→Current 전환 시 사유·시장조건 증빙 첨부 강제 + 결산팀 별도 검토 서명",
+        "expected_frequency": "Per Change",
+        "expected_owner": "보험계리 + 결산팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "G2",
+        "node_label": "Onerous 단독 분개",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "Onerous JE CFO 전수 검토·서명",
+        "why_needed_ko": "Onerous Group 전환 분개 = 매출 직접 차감",
+        "recommended_id": "[ACTIVATE] RC-INS-004",
+        "recommended_activity_ko": "월별 Onerous 분개 100% CFO 시스템 서명 + 전환 사유 증빙 첨부 강제",
+        "expected_frequency": "Monthly",
+        "expected_owner": "보험계리(기안) + CFO(서명)",
+        "priority": "High"
+      },
+      {
+        "node_id": "A1",
+        "node_label": "Coverage Unit 산정",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "GROUP 단위 집계 결과 vs 개별 정책 합계 자동 대사",
+        "why_needed_ko": "N:1 집계로 1:1 추적 끊김 — reconciliation 통제 필수",
+        "recommended_id": "[NEW] RC-INS-CU-RECON-01",
+        "recommended_activity_ko": "월말 csm_group.cu_total vs 산입된 cu_calc 개별 합계 자동 대사",
+        "expected_frequency": "Monthly",
+        "expected_owner": "보험계리팀",
+        "priority": "Medium"
+      }
+    ],
+    "coverage_summary": {
+      "total_nodes": 11,
+      "mapped_nodes": 4,
+      "gap_nodes": 4,
+      "missing_designs": 5,
+      "high_priority": 4,
+      "headline_ko": "IFRS17 보험료수익 11개 노드 중 4개 매핑·4개 공백. ACTUARIAL_RULE 메이커-체커·재량 가정 사유 강제·Onerous CFO 서명 4개는 즉시 가동 필요."
+    }
   }
 }

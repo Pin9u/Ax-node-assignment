@@ -94,5 +94,390 @@
     "sod": "🚨 **분류·수수료율 변경자 = 정산 승인자 동일**\n발견 근거: 인터뷰 §4-ⓓ — 셀러플랫폼팀 시니어 4명.\n권고: GRC 충돌룰 강화 + 분기 detection.",
     "manual": "🚨 **INV_OWNER_FLAG 임의 토글로 인식방식 즉시 변경**\n발견 근거: 인터뷰 §3-(A).\n권고: 분류변경 메이커-체커 즉시 + 변경 시점 매출 영향 재계산.",
     "overall_severity": "High"
+  },
+  "plan": {
+    "process": "매출 (오픈마켓 — 1P/3P 혼합)",
+    "mode": "transaction_trace",
+    "sample_transaction": "구매자 X · ₩125,000 주문 (셀러 SELL-1331 · 3P) · 2026-04-23 14:08",
+    "lanes": [
+      {
+        "id": "BUYER",
+        "label_ko": "🛒 구매자",
+        "sequence_index": 0
+      },
+      {
+        "id": "SELLER",
+        "label_ko": "🏪 셀러센터",
+        "sequence_index": 1
+      },
+      {
+        "id": "CORE",
+        "label_ko": "⚙ OMS·ESCROW",
+        "sequence_index": 2
+      },
+      {
+        "id": "FUL",
+        "label_ko": "📦 풀필먼트/WMS",
+        "sequence_index": 3
+      },
+      {
+        "id": "ACCT",
+        "label_ko": "💰 ERP / 셀러 AP",
+        "sequence_index": 4
+      }
+    ],
+    "nodes": [
+      {
+        "id": "B1",
+        "lane": "BUYER",
+        "label_ko": "결제 → ESCROW",
+        "shape": "process",
+        "cls": "automated",
+        "system": "QuickPang 결제 (PG 연동)",
+        "tables": [
+          "payment_intent",
+          "escrow_account"
+        ],
+        "data_action": "INSERT",
+        "key_field": "payment_intent.intent_id",
+        "key_value": "PI-2026-0423-X3318",
+        "evidence_source": "narrative §2",
+        "linkage_to_next": {
+          "via_table": "order_header",
+          "join_logic": "order_header.payment_intent_id = payment_intent.intent_id",
+          "transform_type": "1:1",
+          "breaks_lineage": false
+        }
+      },
+      {
+        "id": "S1",
+        "lane": "SELLER",
+        "label_ko": "상품 등록",
+        "shape": "process",
+        "cls": "manual",
+        "system": "셀러센터",
+        "tables": [
+          "product_master"
+        ],
+        "data_action": "INSERT",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "S2",
+        "lane": "SELLER",
+        "label_ko": "INV_OWNER_FLAG 임의 토글",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "셀러센터 어드민",
+        "tables": [
+          "seller_master",
+          "seller_master_hist"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "seller_master.seller_id",
+        "evidence_source": "vision: seller_master §3 (SELL-1331 1P→3P 토글)"
+      },
+      {
+        "id": "C1",
+        "lane": "CORE",
+        "label_ko": "ORDER_HEADER",
+        "shape": "data_store",
+        "cls": "automated",
+        "system": "QuickPang OMS",
+        "tables": [
+          "order_header",
+          "order_line"
+        ],
+        "data_action": "INSERT",
+        "key_field": "order_header.order_id",
+        "key_value": "ORD-2026-0423-99821",
+        "evidence_source": "narrative §2",
+        "linkage_to_next": {
+          "via_table": "order_line",
+          "join_logic": "order_line.order_id = order_header.order_id",
+          "transform_type": "1:N",
+          "breaks_lineage": false
+        }
+      },
+      {
+        "id": "C2",
+        "lane": "CORE",
+        "label_ko": "1P/3P 분류",
+        "shape": "decision",
+        "cls": "control",
+        "system": "QuickPang OMS",
+        "tables": [
+          "order_line",
+          "seller_master"
+        ],
+        "data_action": "READ",
+        "key_field": "seller_master.inv_owner_flag",
+        "evidence_source": "narrative §3-(A)"
+      },
+      {
+        "id": "C3",
+        "lane": "CORE",
+        "label_ko": "PARTIAL_REFUND 멱등 우회",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "QuickPang OMS",
+        "tables": [
+          "refund_event",
+          "escrow_release_log"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "refund_event.event_id",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "C4",
+        "lane": "CORE",
+        "label_ko": "SELLER_FEE_RATE 단독 변경",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "셀러플랫폼팀 어드민",
+        "tables": [
+          "seller_fee_rate"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "seller_fee_rate.rate_id",
+        "evidence_source": "vision: seller_master §4"
+      },
+      {
+        "id": "C5",
+        "lane": "CORE",
+        "label_ko": "셀러 정산 D+15",
+        "shape": "process",
+        "cls": "control",
+        "system": "Settlement Hub",
+        "tables": [
+          "seller_settlement"
+        ],
+        "data_action": "INSERT",
+        "key_field": "seller_settlement.settle_id",
+        "key_value": "SETT-2026-D15-S1331",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "F1",
+        "lane": "FUL",
+        "label_ko": "출고 / 구매확정",
+        "shape": "process",
+        "cls": "automated",
+        "system": "QuickPang WMS / Seller 3P",
+        "tables": [
+          "delivery_event",
+          "purchase_confirm"
+        ],
+        "data_action": "INSERT",
+        "key_field": "purchase_confirm.confirm_id",
+        "key_value": "PC-2026-0427-99821",
+        "evidence_source": "narrative §3",
+        "linkage_to_next": {
+          "via_table": "revenue_recog",
+          "join_logic": "revenue_recog.confirm_id = purchase_confirm.confirm_id",
+          "transform_type": "formula",
+          "breaks_lineage": true,
+          "note": "구매확정 시점에 1P=Gross / 3P=Net 분류 적용 — 매출 인식 방식 변환"
+        }
+      },
+      {
+        "id": "A1",
+        "lane": "ACCT",
+        "label_ko": "Gross/Net 매출 인식",
+        "shape": "process",
+        "cls": "control",
+        "system": "ERP RevRec",
+        "tables": [
+          "revenue_recog",
+          "gl_journal"
+        ],
+        "data_action": "INSERT",
+        "key_field": "gl_journal.je_doc_no",
+        "key_value": "JE-2026-0427-3P-9982",
+        "evidence_source": "narrative §3-(A)"
+      }
+    ],
+    "edges": [
+      {
+        "from_id": "B1",
+        "to_id": "C1"
+      },
+      {
+        "from_id": "S1",
+        "to_id": "C1"
+      },
+      {
+        "from_id": "S2",
+        "to_id": "C2"
+      },
+      {
+        "from_id": "C1",
+        "to_id": "C2"
+      },
+      {
+        "from_id": "C2",
+        "to_id": "F1",
+        "label_ko": "구매확정"
+      },
+      {
+        "from_id": "F1",
+        "to_id": "C3"
+      },
+      {
+        "from_id": "F1",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "C4",
+        "to_id": "C5"
+      },
+      {
+        "from_id": "C5",
+        "to_id": "A1"
+      }
+    ],
+    "journal_entry": {
+      "doc_no": "JE-2026-0427-3P-9982",
+      "posting_date": "2026-04-27",
+      "system": "ERP RevRec / GL",
+      "tables": [
+        "gl_journal",
+        "gl_journal_line",
+        "seller_payable"
+      ],
+      "lines": [
+        {
+          "side": "Dr",
+          "account": "현금/PG미수금",
+          "amount": "₩125,000"
+        },
+        {
+          "side": "Cr",
+          "account": "셀러 미지급금",
+          "amount": "₩110,000",
+          "memo": "3P — Gross 차감"
+        },
+        {
+          "side": "Cr",
+          "account": "수수료 매출",
+          "amount": "₩ 13,750",
+          "memo": "11% 수수료 (Net)"
+        },
+        {
+          "side": "Cr",
+          "account": "VAT 예수금",
+          "amount": "₩  1,250"
+        }
+      ]
+    },
+    "interview_questions": [
+      {
+        "topic": "1P/3P 분류 시점·통제",
+        "why_needed": "INV_OWNER_FLAG 임의 토글 시 매출 인식 방식이 즉시 변경",
+        "questions": [
+          "seller_master.inv_owner_flag 변경 시 시스템이 메이커-체커를 강제하나요?",
+          "분류 변경 시점부터 신규 매출만 새 분류 적용되나요? 기존 미정산건은 어떻게 처리?",
+          "1P→3P 토글된 셀러의 분기별 자동 재분류 검토가 있나요?"
+        ]
+      },
+      {
+        "topic": "PARTIAL_REFUND 멱등 우회",
+        "why_needed": "SRE 인시던트 보고서에서 멱등 우회 식별 — 매출 중복 인식 위험",
+        "questions": [
+          "refund_event 의 PARTIAL_REFUND 상태 처리에서 멱등키 검증이 어느 layer 에서 수행되나요?",
+          "과거 6개월 PARTIAL_REFUND 건의 매출 중복 인식 검증 결과를 보여주실 수 있나요?",
+          "멱등 우회 발생 시 자동 알람·재처리 절차가 있나요?"
+        ]
+      },
+      {
+        "topic": "셀러 수수료율 변경",
+        "why_needed": "SELLER_FEE_RATE 단독 변경 — 매출(Net) 인식 직접 영향",
+        "questions": [
+          "수수료율 변경 시 메이커-체커 + 분기 재평가가 시스템적으로 강제되나요?",
+          "셀러플랫폼팀 시니어 4명의 충돌역할 해소 timeline 은?"
+        ]
+      },
+      {
+        "topic": "자동확정 임계값",
+        "why_needed": "7일 자동확정 누적 효과 분석 절차 narrative에 없음",
+        "questions": [
+          "7일 자동확정 임계값의 분기별 합리성 평가는 누가 수행하나요?",
+          "자동확정 후 환불 발생률 모니터링 대시보드가 있나요?"
+        ]
+      }
+    ]
+  },
+  "missing_controls": {
+    "missing_controls": [
+      {
+        "node_id": "S2",
+        "node_label": "INV_OWNER_FLAG 임의 토글",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "INV_OWNER_FLAG 변경 메이커-체커 + 시점 통제",
+        "why_needed_ko": "1P/3P 분류 변경은 Gross↔Net 매출 인식 즉시 변환 — 매출 왜곡 직결",
+        "recommended_id": "[ACTIVATE] RC-ECM-001",
+        "recommended_activity_ko": "seller_master.inv_owner_flag 변경 시 메이커(셀러플랫폼)·체커(재무) 2단 + 변경 시점부터 미정산 주문 영향 분석 강제",
+        "expected_frequency": "Per Change",
+        "expected_owner": "셀러플랫폼팀 + 재무팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "C3",
+        "node_label": "PARTIAL_REFUND 멱등 우회",
+        "missing_type": "Preventive Automated",
+        "what_should_exist": "전 상태경로 멱등키 검증 강제",
+        "why_needed_ko": "PARTIAL_REFUND 경로 멱등 우회로 매출 중복 인식 가능 — SRE 인시던트 식별",
+        "recommended_id": "[ACTIVATE] RC-ECM-002",
+        "recommended_activity_ko": "refund_event 모든 상태경로(FULL/PARTIAL/CANCEL)에 Idempotency-Key 강제 적용 + 과거 6개월 재산정",
+        "expected_frequency": "Per Transaction",
+        "expected_owner": "OMS 운영팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "C4",
+        "node_label": "SELLER_FEE_RATE 단독 변경",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "수수료율 변경 메이커-체커 + 분기 재평가",
+        "why_needed_ko": "Net 매출 인식 직접 영향 — 셀러 단독 변경은 SOX 결함",
+        "recommended_id": "[ACTIVATE] RC-ECM-003",
+        "recommended_activity_ko": "seller_fee_rate 변경 시 메이커-체커 시스템 강제 + 분기 합리성 재평가 CFO 서명",
+        "expected_frequency": "Per Change",
+        "expected_owner": "정산팀 + 재무팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "F1",
+        "node_label": "출고 / 구매확정",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "자동확정 임계값(7일) 분기 합리성 평가",
+        "why_needed_ko": "자동확정 누적이 Net 인식 시점에 영향 — 분기 검토 부재",
+        "recommended_id": "[ACTIVATE] RC-ECM-004",
+        "recommended_activity_ko": "분기별 자동확정 후 환불 발생률·금액을 재무팀이 분석하여 임계값 재평가",
+        "expected_frequency": "Quarterly",
+        "expected_owner": "재무팀",
+        "priority": "Medium"
+      },
+      {
+        "node_id": "A1",
+        "node_label": "Gross/Net 매출 인식",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "GL 분개 결과 vs 셀러 정산 결과 3-way 검증 (월별)",
+        "why_needed_ko": "1P/3P 혼합 매출 인식 — Gross/Net 환산 오류 가능성 모니터링 필요",
+        "recommended_id": "[NEW] RC-ECM-RECON-01",
+        "recommended_activity_ko": "월말 gl_journal 매출·셀러 미지급금 vs seller_settlement 합계 vs PG 정산 3-way 대사 + CFO 서명",
+        "expected_frequency": "Monthly",
+        "expected_owner": "재무팀 + CFO",
+        "priority": "High"
+      }
+    ],
+    "coverage_summary": {
+      "total_nodes": 10,
+      "mapped_nodes": 5,
+      "gap_nodes": 3,
+      "missing_designs": 5,
+      "high_priority": 4,
+      "headline_ko": "오픈마켓 10개 노드 중 5개 매핑·3개 공백. 1P/3P 분류·멱등·수수료율 3개는 RCM 정의 있으나 미운영 — 즉시 가동. Gross/Net 3-way 대사는 신설 권고."
+    }
   }
 }

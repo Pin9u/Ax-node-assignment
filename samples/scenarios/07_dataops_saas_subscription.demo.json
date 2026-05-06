@@ -96,5 +96,345 @@
     "sod": "🚨 **Sales rep 가 SSP 변경과 ORDER 승인 동시 보유 (시니어 7명)**\n발견 근거: 인터뷰 §4-ⓓ.\n권고: GRC 충돌룰 + 분기 detection.",
     "manual": "🚨 **Contract Mod Type 분류·Catch-up 분개 단독**\n발견 근거: 인터뷰 §3-(C), §4-ⓒ.\n권고: 분류 메이커-체커 즉시 + Catch-up CFO 100% 인용 — Inspection.",
     "overall_severity": "High"
+  },
+  "plan": {
+    "process": "구독 매출 (B2B SaaS — IFRS15 5단계)",
+    "mode": "transaction_trace",
+    "sample_transaction": "고객 Acme · ORD-2026-A789 · $50K/yr 다년계약 · 2026-04-01 effective",
+    "lanes": [
+      {
+        "id": "SALES",
+        "label_ko": "🤝 Salesforce CPQ",
+        "sequence_index": 0
+      },
+      {
+        "id": "BILL",
+        "label_ko": "⚙ BillingHub",
+        "sequence_index": 1
+      },
+      {
+        "id": "PROD",
+        "label_ko": "📊 USAGE_METER",
+        "sequence_index": 2
+      },
+      {
+        "id": "ACCT",
+        "label_ko": "💰 NetSuite RevRec",
+        "sequence_index": 3
+      }
+    ],
+    "nodes": [
+      {
+        "id": "S1",
+        "lane": "SALES",
+        "label_ko": "견적·계약 체결",
+        "shape": "process",
+        "cls": "manual",
+        "system": "Salesforce CPQ",
+        "tables": [
+          "sf_opportunity",
+          "sf_quote",
+          "sf_order"
+        ],
+        "data_action": "INSERT",
+        "key_field": "sf_order.order_id",
+        "key_value": "ORD-2026-A789",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "performance_obligation",
+          "join_logic": "po.sf_order_id = sf_order.order_id",
+          "transform_type": "1:N",
+          "breaks_lineage": false,
+          "note": "Order → 다중 SKU 분해"
+        }
+      },
+      {
+        "id": "S2",
+        "lane": "SALES",
+        "label_ko": "Custom SSP 임의 입력",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "Salesforce CPQ",
+        "tables": [
+          "sf_order_line"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "sf_order_line.custom_ssp",
+        "evidence_source": "vision: po_allocation.sql §6"
+      },
+      {
+        "id": "B1",
+        "lane": "BILL",
+        "label_ko": "Performance Obligation",
+        "shape": "data_store",
+        "cls": "automated",
+        "system": "BillingHub (자체)",
+        "tables": [
+          "performance_obligation"
+        ],
+        "data_action": "INSERT",
+        "key_field": "performance_obligation.po_id",
+        "key_value": "PO-2026-A789-01",
+        "evidence_source": "vision: po_allocation.sql §1"
+      },
+      {
+        "id": "B2",
+        "lane": "BILL",
+        "label_ko": "구독 매출 인식 (Straight-line)",
+        "shape": "process",
+        "cls": "automated",
+        "system": "BillingHub",
+        "tables": [
+          "deferred_revenue",
+          "revenue_recog"
+        ],
+        "data_action": "INSERT",
+        "key_field": "revenue_recog.rec_id",
+        "key_value": "RR-2026-04-A789-01",
+        "evidence_source": "narrative §3",
+        "linkage_to_next": {
+          "via_table": "gl_journal",
+          "join_logic": "gl_journal.source_rec_id = revenue_recog.rec_id",
+          "transform_type": "N:1",
+          "breaks_lineage": true,
+          "note": "월배치 집계 — N revenue_recog → 1 분개"
+        }
+      },
+      {
+        "id": "B3",
+        "lane": "BILL",
+        "label_ko": "Contract Mod Type 단독 결정",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "BillingHub",
+        "tables": [
+          "contract_mod"
+        ],
+        "data_action": "INSERT",
+        "key_field": "contract_mod.mod_id",
+        "evidence_source": "narrative §3-(C)"
+      },
+      {
+        "id": "U1",
+        "lane": "PROD",
+        "label_ko": "사용량 메터 일배치",
+        "shape": "process",
+        "cls": "automated",
+        "system": "USAGE_METER (자체)",
+        "tables": [
+          "usage_meter",
+          "usage_billing_line"
+        ],
+        "data_action": "INSERT",
+        "key_field": "usage_meter.event_id",
+        "key_value": "USG-2026-04-A789-D",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "U2",
+        "lane": "PROD",
+        "label_ko": "인스트루멘테이션 누락",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "USAGE_METER",
+        "tables": [
+          "usage_meter",
+          "usage_backfill"
+        ],
+        "data_action": "INSERT",
+        "evidence_source": "narrative §3-(B) — Backfill 절차 의존"
+      },
+      {
+        "id": "A1",
+        "lane": "ACCT",
+        "label_ko": "Deferred Revenue Roll-forward",
+        "shape": "process",
+        "cls": "control",
+        "system": "NetSuite RevRec",
+        "tables": [
+          "deferred_revenue_rollforward"
+        ],
+        "data_action": "INSERT",
+        "key_field": "deferred_revenue_rollforward.period_id",
+        "key_value": "DRR-2026-04",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "A2",
+        "lane": "ACCT",
+        "label_ko": "Catch-up 단독 분개",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "NetSuite GL",
+        "tables": [
+          "gl_journal"
+        ],
+        "data_action": "POST",
+        "key_field": "gl_journal.je_doc_no",
+        "evidence_source": "narrative §4-ⓒ"
+      }
+    ],
+    "edges": [
+      {
+        "from_id": "S1",
+        "to_id": "B1"
+      },
+      {
+        "from_id": "S2",
+        "to_id": "B1"
+      },
+      {
+        "from_id": "B1",
+        "to_id": "B2"
+      },
+      {
+        "from_id": "U1",
+        "to_id": "B1"
+      },
+      {
+        "from_id": "U2",
+        "to_id": "U1"
+      },
+      {
+        "from_id": "B2",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "B3",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "A1",
+        "to_id": "A2"
+      }
+    ],
+    "journal_entry": {
+      "doc_no": "JE-2026-04-SAAS-A789",
+      "posting_date": "2026-04-30",
+      "system": "NetSuite GL",
+      "tables": [
+        "gl_journal",
+        "gl_journal_line"
+      ],
+      "lines": [
+        {
+          "side": "Dr",
+          "account": "이연수익(Deferred Revenue)",
+          "amount": "$4,166",
+          "memo": "1/12 Straight-line"
+        },
+        {
+          "side": "Cr",
+          "account": "구독 매출",
+          "amount": "$4,166"
+        }
+      ]
+    },
+    "interview_questions": [
+      {
+        "topic": "Custom SSP 검증",
+        "why_needed": "할인거래 SSP 임의 입력 — 거래가격 분배 왜곡 가능",
+        "questions": [
+          "sf_order_line.custom_ssp 입력 시 메이커-체커가 시스템 강제되나요?",
+          "할인거래 SSP 변경 분기 sample 검토 절차가 있나요?"
+        ]
+      },
+      {
+        "topic": "Usage 인스트루멘테이션 누락",
+        "why_needed": "메터 자체 누락은 reconciliation 으로 식별 불가",
+        "questions": [
+          "usage_meter 누락(미계측 호) 검출의 Backfill 절차 빈도와 책임자는?",
+          "분기별 미계측 검증 결과 보고서를 보여주실 수 있나요?"
+        ]
+      },
+      {
+        "topic": "Contract Modification 분류",
+        "why_needed": "Cumulative Catch-up vs Prospective 분류는 매출 시점·금액 변경",
+        "questions": [
+          "contract_mod 분류 결정자와 검토자가 분리되어 있나요?",
+          "Catch-up 분류 시 누적 매출 재산출 자동/수동 여부는?"
+        ]
+      },
+      {
+        "topic": "Catch-up 분개 검토",
+        "why_needed": "RevOps 단독 등록 — CFO 서명 형식 불명",
+        "questions": [
+          "Catch-up manual JE 를 매월 CFO 가 어떤 양식으로 전수 검토하나요?",
+          "분개 등록자와 검토자의 시스템 분리 여부는?"
+        ]
+      }
+    ]
+  },
+  "missing_controls": {
+    "missing_controls": [
+      {
+        "node_id": "S2",
+        "node_label": "Custom SSP 임의 입력",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "Custom SSP 변경 메이커-체커",
+        "why_needed_ko": "Custom SSP는 PO 분배 베이스 — 임의 변경 시 매출 분배 왜곡",
+        "recommended_id": "[ACTIVATE] RC-SAS-001",
+        "recommended_activity_ko": "할인거래 SSP 변경 시 메이커(Sales)·체커(RevOps) 2단 강제 + 변경 사유 증빙 첨부",
+        "expected_frequency": "Per Order",
+        "expected_owner": "Sales + RevOps",
+        "priority": "High"
+      },
+      {
+        "node_id": "U2",
+        "node_label": "인스트루멘테이션 누락",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "Backfill 절차 + 미계측 호 분기 점검",
+        "why_needed_ko": "메터 누락 = 매출 누락 직결 — reconciliation 으로 발견 어려움",
+        "recommended_id": "[ACTIVATE] RC-SAS-002",
+        "recommended_activity_ko": "분기별 인스트루멘테이션 누락 검증 보고서 생성 + RevOps·Engineering 합동 검토",
+        "expected_frequency": "Quarterly",
+        "expected_owner": "RevOps + Engineering",
+        "priority": "Medium"
+      },
+      {
+        "node_id": "B3",
+        "node_label": "Contract Mod Type 단독 결정",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "변경유형 분류 메이커-체커",
+        "why_needed_ko": "Catch-up vs Prospective 분류는 매출 인식 시점/금액 직접 영향",
+        "recommended_id": "[ACTIVATE] RC-SAS-003",
+        "recommended_activity_ko": "contract_mod 분류 시 메이커(RevOps)·체커(재무) 2단 + IFRS15 §86 근거 인용 필수",
+        "expected_frequency": "Per Change",
+        "expected_owner": "RevOps + 재무팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "A2",
+        "node_label": "Catch-up 단독 분개",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "Catch-up JE CFO 전수 검토·서명",
+        "why_needed_ko": "Cumulative Catch-up 분개는 누적 매출 직접 변경 — SOX 핵심",
+        "recommended_id": "[ACTIVATE] RC-SAS-004",
+        "recommended_activity_ko": "월별 Catch-up manual JE 100% CFO 시스템 서명 + 분류 근거 증빙 첨부",
+        "expected_frequency": "Monthly",
+        "expected_owner": "RevOps + CFO",
+        "priority": "High"
+      },
+      {
+        "node_id": "B2",
+        "node_label": "구독 매출 인식 (Straight-line)",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "월별 revenue_recog 합계 vs deferred_revenue 잔액 자동 roll-forward 검증",
+        "why_needed_ko": "N:1 월배치 집계 — 1:1 추적 끊김 reconciliation 필수",
+        "recommended_id": "[NEW] RC-SAS-DRR-RECON-01",
+        "recommended_activity_ko": "월말 DRR(Deferred Revenue Roll-forward) 자동 reconciliation + 차이 발생 시 RevOps 알림",
+        "expected_frequency": "Monthly",
+        "expected_owner": "RevOps + 재무팀",
+        "priority": "Medium"
+      }
+    ],
+    "coverage_summary": {
+      "total_nodes": 9,
+      "mapped_nodes": 4,
+      "gap_nodes": 4,
+      "missing_designs": 5,
+      "high_priority": 3,
+      "headline_ko": "B2B SaaS 9개 노드 중 4개 매핑·4개 공백. SSP 메이커-체커·Contract Mod 분류·Catch-up CFO 서명 즉시 가동 + 인스트루멘테이션 분기 검증 신설."
+    }
   }
 }

@@ -57,5 +57,360 @@
     "sod": "🚨 **EX_TRIGGER 등록자 = 마일스톤 인식 승인자 동일**\n발견 근거: 인터뷰 §4-ⓓ.\n권고: 예외등록 시 CFO 2단 승인 강제 + 충돌룰.",
     "manual": "🚨 **Constraint Ratio 단독 결정 + 클로백 단독 분개**\n발견 근거: 인터뷰 §3-(C), §4-ⓒ.\n권고: 마일스톤별 비율 메이커-체커 + CFO 100% 인용 — Inspection.",
     "overall_severity": "High"
+  },
+  "plan": {
+    "process": "라이선스·마일스톤·로열티 매출 (글로벌 라이선스 아웃)",
+    "mode": "transaction_trace",
+    "sample_transaction": "한빛바이오 → Pharma X · CONTRACT-2026-LIC-001 · M2 마일스톤 $10M / 2026-04-15 · Royalty 6.5%",
+    "lanes": [
+      {
+        "id": "PART",
+        "label_ko": "🌐 글로벌 파트너 (외부)",
+        "sequence_index": 0
+      },
+      {
+        "id": "BD",
+        "label_ko": "🤝 사업개발팀",
+        "sequence_index": 1
+      },
+      {
+        "id": "CL",
+        "label_ko": "🔬 임상·승인",
+        "sequence_index": 2
+      },
+      {
+        "id": "ACCT",
+        "label_ko": "💰 RevRec / Royalty Hub",
+        "sequence_index": 3
+      }
+    ],
+    "nodes": [
+      {
+        "id": "P1",
+        "lane": "PART",
+        "label_ko": "분기 Net Sales 보고",
+        "shape": "manual_step",
+        "cls": "manual",
+        "system": "Partner Portal (외부)",
+        "tables": [
+          "partner_sales_report"
+        ],
+        "data_action": "INSERT",
+        "key_field": "partner_sales_report.report_id",
+        "key_value": "PSR-2026-Q1-PHX",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "royalty_calc",
+          "join_logic": "partner_sales_report.partner_id = royalty_calc.partner_id",
+          "transform_type": "1:1",
+          "breaks_lineage": false
+        }
+      },
+      {
+        "id": "B1",
+        "lane": "BD",
+        "label_ko": "CONTRACT 마스터",
+        "shape": "data_store",
+        "cls": "automated",
+        "system": "Contract Mgmt",
+        "tables": [
+          "contract",
+          "milestone_def",
+          "royalty_def"
+        ],
+        "data_action": "READ",
+        "key_field": "contract.contract_id",
+        "key_value": "CONTRACT-2026-LIC-001",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "milestone_event",
+          "join_logic": "contract.contract_id = milestone_event.contract_id",
+          "transform_type": "1:N",
+          "breaks_lineage": false
+        }
+      },
+      {
+        "id": "B2",
+        "lane": "BD",
+        "label_ko": "EX_TRIGGER 증빙없는 등록",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "Contract Mgmt",
+        "tables": [
+          "milestone_event",
+          "ex_trigger_log"
+        ],
+        "data_action": "INSERT",
+        "key_field": "milestone_event.event_id",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "C1",
+        "lane": "CL",
+        "label_ko": "MILESTONE_TRIGGER",
+        "shape": "process",
+        "cls": "control",
+        "system": "Clinical Ops",
+        "tables": [
+          "milestone_event",
+          "clinical_evidence"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "milestone_event.evidence_doc_id",
+        "key_value": "EVD-2026-04-PHX-M2",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "constraint_ratio",
+          "join_logic": "milestone_event.event_id = constraint_ratio.event_id",
+          "transform_type": "1:1",
+          "breaks_lineage": false
+        }
+      },
+      {
+        "id": "A1",
+        "lane": "ACCT",
+        "label_ko": "Upfront 인식",
+        "shape": "process",
+        "cls": "control",
+        "system": "RevRec",
+        "tables": [
+          "po_allocation",
+          "gl_journal"
+        ],
+        "data_action": "POST",
+        "key_field": "gl_journal.je_doc_no",
+        "key_value": "JE-2026-04-LIC-UPF-001",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "A2",
+        "lane": "ACCT",
+        "label_ko": "Constraint Ratio 단독 결정",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "RevRec",
+        "tables": [
+          "constraint_ratio"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "constraint_ratio.ratio_id",
+        "evidence_source": "narrative §3-(C)"
+      },
+      {
+        "id": "A3",
+        "lane": "ACCT",
+        "label_ko": "Royalty 자동대사",
+        "shape": "process",
+        "cls": "control",
+        "system": "Royalty Hub",
+        "tables": [
+          "royalty_calc",
+          "royalty_recon"
+        ],
+        "data_action": "INSERT",
+        "key_field": "royalty_calc.calc_id",
+        "key_value": "RYC-2026-Q1-PHX",
+        "evidence_source": "narrative §2",
+        "linkage_to_next": {
+          "via_table": "gl_journal",
+          "join_logic": "royalty_calc.calc_id = gl_journal.ref_doc",
+          "transform_type": "aggregate",
+          "breaks_lineage": true,
+          "note": "추정 모형 변경 시 catch-up 분개로 1:1 끊김"
+        }
+      },
+      {
+        "id": "A4",
+        "lane": "ACCT",
+        "label_ko": "추정 모형 단독 변경",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "Royalty Hub",
+        "tables": [
+          "royalty_estimate_model"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "royalty_estimate_model.model_version",
+        "evidence_source": "narrative §3-(D)"
+      },
+      {
+        "id": "A5",
+        "lane": "ACCT",
+        "label_ko": "클로백·차이정산 단독 분개",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "ERP GL",
+        "tables": [
+          "gl_journal"
+        ],
+        "data_action": "POST",
+        "evidence_source": "narrative §4-ⓒ"
+      }
+    ],
+    "edges": [
+      {
+        "from_id": "P1",
+        "to_id": "A3"
+      },
+      {
+        "from_id": "B1",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "B2",
+        "to_id": "C1"
+      },
+      {
+        "from_id": "C1",
+        "to_id": "A2"
+      },
+      {
+        "from_id": "A2",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "A4",
+        "to_id": "A3"
+      },
+      {
+        "from_id": "A3",
+        "to_id": "A5"
+      }
+    ],
+    "journal_entry": {
+      "doc_no": "JE-2026-04-LIC-M2-001",
+      "posting_date": "2026-04-15",
+      "system": "ERP GL",
+      "tables": [
+        "gl_journal",
+        "gl_journal_line"
+      ],
+      "lines": [
+        {
+          "side": "Dr",
+          "account": "외상매출금",
+          "amount": "$10,000,000",
+          "memo": "M2 마일스톤 청구 (Pharma X)"
+        },
+        {
+          "side": "Cr",
+          "account": "라이선스 매출",
+          "amount": "$ 9,500,000",
+          "memo": "Constraint 95% 적용"
+        },
+        {
+          "side": "Cr",
+          "account": "이연매출 (제약)",
+          "amount": "$   500,000",
+          "memo": "5% 가변대가 제약"
+        }
+      ]
+    },
+    "interview_questions": [
+      {
+        "topic": "마일스톤 증빙·EX_TRIGGER",
+        "why_needed": "EX_TRIGGER 우회 등록 시 증빙없이 매출 인식 가능 — IFRS15 §8 핵심",
+        "questions": [
+          "EX_TRIGGER 사용 시 R&D재무·CFO 2단 승인이 시스템적으로 강제되나요?",
+          "마일스톤 임상 증빙(milestone_event.evidence_doc_id) 없이 인식한 케이스가 있었나요?"
+        ]
+      },
+      {
+        "topic": "가변대가 Constraint 비율",
+        "why_needed": "Constraint Ratio 단독 결정 — 매출 과대인식 직접 원인",
+        "questions": [
+          "Constraint Ratio 결정 시 마일스톤별 메이커-체커 절차가 있나요?",
+          "비율 변경 이력(constraint_ratio.ratio_id) 사후 검토는 누가, 어떤 주기로 하나요?"
+        ]
+      },
+      {
+        "topic": "추정 모형 변경 통제",
+        "why_needed": "Royalty 추정 모형 변경이 catch-up 분개로 직결됨",
+        "questions": [
+          "royalty_estimate_model 변경 시 메이커-체커 + 외부감사 통보 절차는?",
+          "모형 변경 사유·증빙 첨부가 시스템적으로 강제되나요?"
+        ]
+      },
+      {
+        "topic": "클로백·차이정산 분개 통제",
+        "why_needed": "R&D재무팀 단독 등록 — 분개 검토 누락 시 매출 차이 미해소",
+        "questions": [
+          "클로백·차이정산 분개에 대한 월별 CFO 100% 검토 서명 절차는?",
+          "Royalty 자동대사 차이가 임계 초과 시 알람 수신자·해소 SLA 는?"
+        ]
+      }
+    ]
+  },
+  "missing_controls": {
+    "missing_controls": [
+      {
+        "node_id": "B2",
+        "node_label": "EX_TRIGGER 증빙없는 등록",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "예외 등록 시 R&D재무·CFO 2단 승인 + 임상 증빙 첨부 강제",
+        "why_needed_ko": "마일스톤 증빙 없이 매출 인식 = IFRS15 §8 직접 위반",
+        "recommended_id": "[ACTIVATE] RC-PHA-001",
+        "recommended_activity_ko": "EX_TRIGGER 사용 시 임상 증빙 doc_id 첨부 + R&D재무·CFO 2단 승인 강제",
+        "expected_frequency": "Per Trigger",
+        "expected_owner": "R&D재무 + CFO",
+        "priority": "High"
+      },
+      {
+        "node_id": "A2",
+        "node_label": "Constraint Ratio 단독 결정",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "마일스톤별 Constraint Ratio 메이커-체커 + 분기 사후 검토",
+        "why_needed_ko": "Constraint 단독 결정 시 가변대가 제약 우회 → 매출 과대인식",
+        "recommended_id": "[ACTIVATE] RC-PHA-003",
+        "recommended_activity_ko": "constraint_ratio 변경 시 마일스톤별 메이커-체커 강제 + 분기 비율 합리성 검토",
+        "expected_frequency": "Per Milestone",
+        "expected_owner": "RevRec + 회계팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "A4",
+        "node_label": "추정 모형 단독 변경",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "추정 모형 변경 메이커-체커 + 외부감사 통보",
+        "why_needed_ko": "Royalty 추정 모형 변경 = 누적 catch-up 매출 직결",
+        "recommended_id": "[ACTIVATE] RC-PHA-002",
+        "recommended_activity_ko": "royalty_estimate_model 변경 시 사유·증빙 강제 + 메이커-체커 + 외부감사 통보",
+        "expected_frequency": "Per Change",
+        "expected_owner": "RevRec + 외부감사",
+        "priority": "High"
+      },
+      {
+        "node_id": "A5",
+        "node_label": "클로백·차이정산 단독 분개",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "월별 CFO 100% 검토 서명",
+        "why_needed_ko": "R&D재무 단독 등록 = 분개 검토 미운영 — SOX 결정적 결함",
+        "recommended_id": "[ACTIVATE] RC-PHA-004",
+        "recommended_activity_ko": "클로백·차이정산 분개 100% CFO 시스템 서명 + 분기 외부감사 보고",
+        "expected_frequency": "Monthly",
+        "expected_owner": "재무팀 + CFO",
+        "priority": "High"
+      },
+      {
+        "node_id": "A3",
+        "node_label": "Royalty 자동대사",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "partner_sales_report vs royalty_calc 자동 대사 + 차이 알람",
+        "why_needed_ko": "파트너 보고 지연·누락 시 추정 차이 모니터링 부재 — 매출 누락 위험",
+        "recommended_id": "[NEW] RC-PHA-ROYALTY-RECON-01",
+        "recommended_activity_ko": "분기말 partner_sales_report vs royalty_calc 자동 대사 + 차이 임계 초과 시 RevRec·CFO 동시 알람",
+        "expected_frequency": "Quarterly",
+        "expected_owner": "RevRec + 회계팀",
+        "priority": "Medium"
+      }
+    ],
+    "coverage_summary": {
+      "total_nodes": 9,
+      "mapped_nodes": 2,
+      "gap_nodes": 3,
+      "missing_designs": 5,
+      "high_priority": 4,
+      "headline_ko": "라이선스·마일스톤 9개 노드 중 2개 매핑·3개 공백. EX_TRIGGER 2단 승인·Constraint 메이커-체커·추정 모형 통제·CFO 분개 서명 즉시 가동 필요."
+    }
   }
 }

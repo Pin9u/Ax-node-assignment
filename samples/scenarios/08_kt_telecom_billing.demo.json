@@ -57,5 +57,370 @@
     "sod": "🚨 **RATE_CARD 등록자 = Force-publish 승인자 동일 (시니어 3명)**\n발견 근거: 인터뷰 §4-ⓓ.\n권고: 본부장+재무 2단 승인 강제 + 분기 GRC.",
     "manual": "🚨 **번들 SSP·인터커넥트 분개 단독**\n발견 근거: 인터뷰 §3-(C), §4-ⓒ.\n권고: SSP 메이커-체커 즉시 + 인터커넥트 CFO 100% 인용.",
     "overall_severity": "High"
+  },
+  "plan": {
+    "process": "통신 매출 (정액·종량 + 5G IoT 청구)",
+    "mode": "transaction_trace",
+    "sample_transaction": "가입자 SUB-1234 · 4월 청구 ₩87,500 · INV-2026-04-A1234",
+    "lanes": [
+      {
+        "id": "NET",
+        "label_ko": "📡 NETWORK / Mediation",
+        "sequence_index": 0
+      },
+      {
+        "id": "RATE",
+        "label_ko": "⚙ RATING / BILLING",
+        "sequence_index": 1
+      },
+      {
+        "id": "B2B",
+        "label_ko": "🏢 B2B / 5G IoT",
+        "sequence_index": 2
+      },
+      {
+        "id": "ACCT",
+        "label_ko": "💰 ERP GL",
+        "sequence_index": 3
+      }
+    ],
+    "nodes": [
+      {
+        "id": "N1",
+        "lane": "NET",
+        "label_ko": "CDR 수집",
+        "shape": "data_store",
+        "cls": "automated",
+        "system": "Mediation (자체)",
+        "tables": [
+          "cdr",
+          "mediation_log"
+        ],
+        "data_action": "INSERT",
+        "key_field": "cdr.cdr_id",
+        "key_value": "CDR-2026-04-15-T1234567",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "rating_line",
+          "join_logic": "rating_line.cdr_id = cdr.cdr_id",
+          "transform_type": "1:1",
+          "breaks_lineage": false,
+          "note": "EOD 평가 후 1:1"
+        }
+      },
+      {
+        "id": "N2",
+        "lane": "NET",
+        "label_ko": "시그널링 장애 누락 호",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "Mediation",
+        "tables": [
+          "cdr_loss_queue"
+        ],
+        "data_action": "INSERT",
+        "evidence_source": "narrative §3-(A)"
+      },
+      {
+        "id": "R1",
+        "lane": "RATE",
+        "label_ko": "레이팅 엔진 EOD",
+        "shape": "process",
+        "cls": "automated",
+        "system": "Rating Engine",
+        "tables": [
+          "rating_line",
+          "rate_card"
+        ],
+        "data_action": "INSERT",
+        "key_field": "rating_line.line_id",
+        "key_value": "RL-2026-04-15-9981",
+        "evidence_source": "narrative §3"
+      },
+      {
+        "id": "R2",
+        "lane": "RATE",
+        "label_ko": "RATE_CARD 회귀 ±5%?",
+        "shape": "decision",
+        "cls": "control",
+        "system": "Rating Engine",
+        "tables": [
+          "rate_card",
+          "rate_card_regression"
+        ],
+        "data_action": "READ",
+        "key_field": "rate_card.card_id",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "R3",
+        "lane": "RATE",
+        "label_ko": "본부장 Force-publish",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "Rating Engine 어드민",
+        "tables": [
+          "rate_card",
+          "rate_card_hist"
+        ],
+        "data_action": "UPDATE",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "R4",
+        "lane": "RATE",
+        "label_ko": "BILLING_RUN 인보이스",
+        "shape": "process",
+        "cls": "automated",
+        "system": "Billing Core",
+        "tables": [
+          "billing_invoice",
+          "invoice_line"
+        ],
+        "data_action": "INSERT",
+        "key_field": "billing_invoice.inv_no",
+        "key_value": "INV-2026-04-A1234",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "gl_journal",
+          "join_logic": "gl_journal.source_inv_no = billing_invoice.inv_no",
+          "transform_type": "N:1",
+          "breaks_lineage": true,
+          "note": "월배치 집계 — 다수 invoice → 1 분개"
+        }
+      },
+      {
+        "id": "R5",
+        "lane": "RATE",
+        "label_ko": "번들 SSP 단독 변경",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "정산팀 어드민",
+        "tables": [
+          "bundle_ssp",
+          "bundle_ssp_hist"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "bundle_ssp.ssp_id",
+        "evidence_source": "narrative §3-(C)"
+      },
+      {
+        "id": "I1",
+        "lane": "B2B",
+        "label_ko": "5G 회선 단가 청구",
+        "shape": "process",
+        "cls": "automated",
+        "system": "B2B 청구 시스템",
+        "tables": [
+          "b2b_circuit",
+          "b2b_billing"
+        ],
+        "data_action": "INSERT",
+        "key_field": "b2b_billing.bill_id",
+        "key_value": "B2B-2026-04-IOT-99",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "A1",
+        "lane": "ACCT",
+        "label_ko": "월결산 매출 전기",
+        "shape": "process",
+        "cls": "automated",
+        "system": "ERP GL",
+        "tables": [
+          "gl_journal",
+          "gl_journal_line"
+        ],
+        "data_action": "POST",
+        "key_field": "gl_journal.je_doc_no",
+        "key_value": "JE-2026-04-TEL-MTHLY",
+        "evidence_source": "narrative §1"
+      },
+      {
+        "id": "A2",
+        "lane": "ACCT",
+        "label_ko": "인터커넥트 단독 분개",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "ERP GL",
+        "tables": [
+          "gl_journal"
+        ],
+        "data_action": "POST",
+        "evidence_source": "narrative §4-ⓒ"
+      }
+    ],
+    "edges": [
+      {
+        "from_id": "N1",
+        "to_id": "R1"
+      },
+      {
+        "from_id": "N2",
+        "to_id": "N1"
+      },
+      {
+        "from_id": "R1",
+        "to_id": "R2"
+      },
+      {
+        "from_id": "R2",
+        "to_id": "R3",
+        "condition": "차이"
+      },
+      {
+        "from_id": "R2",
+        "to_id": "R4",
+        "condition": "정상"
+      },
+      {
+        "from_id": "R5",
+        "to_id": "R4"
+      },
+      {
+        "from_id": "I1",
+        "to_id": "R4"
+      },
+      {
+        "from_id": "R4",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "A1",
+        "to_id": "A2"
+      }
+    ],
+    "journal_entry": {
+      "doc_no": "JE-2026-04-TEL-MTHLY",
+      "posting_date": "2026-04-30",
+      "system": "ERP GL",
+      "tables": [
+        "gl_journal",
+        "gl_journal_line"
+      ],
+      "lines": [
+        {
+          "side": "Dr",
+          "account": "통신 미수금",
+          "amount": "₩96,250"
+        },
+        {
+          "side": "Cr",
+          "account": "통신서비스 매출",
+          "amount": "₩87,500"
+        },
+        {
+          "side": "Cr",
+          "account": "VAT 예수금",
+          "amount": "₩ 8,750"
+        }
+      ]
+    },
+    "interview_questions": [
+      {
+        "topic": "CDR 누락 검출",
+        "why_needed": "메디에이션 누락 호 식별 부재 — 매출 누락 직결",
+        "questions": [
+          "시그널링 vs 빌링 교차 대사가 일배치로 운영되나요?",
+          "CDR_LOSS_QUEUE 잔존건의 D+1 해소 절차는?"
+        ]
+      },
+      {
+        "topic": "RATE_CARD Force-publish",
+        "why_needed": "본부장 단독 Force-publish — 회귀 차이 5% 초과해도 우회 가능",
+        "questions": [
+          "Force-publish 시 본부장+재무 2단 승인이 시스템 강제되나요?",
+          "Force-publish 이력의 분기 사후 검토 절차는?"
+        ]
+      },
+      {
+        "topic": "번들 SSP",
+        "why_needed": "정산팀 단독 변경 — IFRS15 SSP 분배 직접 영향",
+        "questions": [
+          "bundle_ssp 변경 시 메이커-체커가 강제되나요?",
+          "분배 결과 분기 합리성 평가는 누가 수행하나요?"
+        ]
+      },
+      {
+        "topic": "인터커넥트 분개",
+        "why_needed": "정산팀 단독 등록 — 인터커넥트 정산은 net 매출 영향",
+        "questions": [
+          "인터커넥트 정산 분개를 본부장+CFO 가 매월 어떤 양식으로 전수 검토하나요?",
+          "해외 사업자 net 정산 차이의 추정 모형은 누가 변경하나요?"
+        ]
+      }
+    ]
+  },
+  "missing_controls": {
+    "missing_controls": [
+      {
+        "node_id": "N2",
+        "node_label": "시그널링 장애 누락 호",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "시그널링 vs 빌링 교차 대사 추가",
+        "why_needed_ko": "메디에이션 누락 호는 reconciliation 으로 미식별 — 매출 누락 직결",
+        "recommended_id": "[ACTIVATE] RC-TEL-001",
+        "recommended_activity_ko": "교환기 시그널링 로그 vs CDR 합계 일배치 자동 대사 + 차이 발생 시 IT운영팀 알림",
+        "expected_frequency": "Daily",
+        "expected_owner": "IT운영팀 + 재무팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "R3",
+        "node_label": "본부장 Force-publish",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "회귀 차이 시 본부장+재무 2단 승인 강제",
+        "why_needed_ko": "Force-publish 단독 권한 = 요금제 통제 우회 — SOX 결함",
+        "recommended_id": "[ACTIVATE] RC-TEL-002",
+        "recommended_activity_ko": "회귀 차이 ±5% 초과 시 본부장(메이커)+재무팀장(체커) 2단 승인 시스템 강제",
+        "expected_frequency": "Per Change",
+        "expected_owner": "본부장 + 재무팀장",
+        "priority": "High"
+      },
+      {
+        "node_id": "R5",
+        "node_label": "번들 SSP 단독 변경",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "SSP 변경 메이커-체커",
+        "why_needed_ko": "번들 SSP 분배 = IFRS15 매출 인식 직접 영향",
+        "recommended_id": "[ACTIVATE] RC-TEL-003",
+        "recommended_activity_ko": "bundle_ssp 변경 시 메이커(정산)·체커(재무) 2단 + 분기 분배결과 검증",
+        "expected_frequency": "Per Change",
+        "expected_owner": "정산팀 + 재무팀",
+        "priority": "High"
+      },
+      {
+        "node_id": "A2",
+        "node_label": "인터커넥트 단독 분개",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "본부장+CFO 전수 검토",
+        "why_needed_ko": "정산팀 단독 등록 — net 매출 영향",
+        "recommended_id": "[ACTIVATE] RC-TEL-004",
+        "recommended_activity_ko": "월별 인터커넥트 분개 본부장+CFO 시스템 서명 + 해외 사업자 정산 증빙 첨부",
+        "expected_frequency": "Monthly",
+        "expected_owner": "정산팀 + 본부장 + CFO",
+        "priority": "Medium"
+      },
+      {
+        "node_id": "R4",
+        "node_label": "BILLING_RUN 인보이스",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "월배치 인보이스 합계 vs GL 분개 합계 자동 대사",
+        "why_needed_ko": "N:1 월배치 집계 — 1:1 추적 끊김",
+        "recommended_id": "[NEW] RC-TEL-RECON-01",
+        "recommended_activity_ko": "월말 billing_invoice 합계 vs gl_journal 매출 자동 대사 + 차이 시 재무팀 알림",
+        "expected_frequency": "Monthly",
+        "expected_owner": "IT운영 + 재무팀",
+        "priority": "Medium"
+      }
+    ],
+    "coverage_summary": {
+      "total_nodes": 10,
+      "mapped_nodes": 4,
+      "gap_nodes": 4,
+      "missing_designs": 5,
+      "high_priority": 3,
+      "headline_ko": "통신 청구 10개 노드 중 4개 매핑·4개 공백. CDR 교차 대사·Force-publish 2단 승인·SSP 메이커-체커 즉시 가동 필요."
+    }
   }
 }
