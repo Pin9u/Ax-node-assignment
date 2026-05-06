@@ -958,6 +958,21 @@ if "mermaid" in st.session_state:
         unsafe_allow_html=True,
     )
 
+    # ===== Section TOC (sticky chips for jump-to-section) =====
+    st.markdown(
+        '<nav class="section-toc" aria-label="섹션 바로가기">'
+        '  <span class="section-toc-label">바로가기</span>'
+        '  <a class="toc-chip" href="#sec-flowchart">🗺️ 플로우차트</a>'
+        '  <a class="toc-chip" href="#sec-keytrail">🔗 꼬리표</a>'
+        '  <a class="toc-chip" href="#sec-interview">🎤 인터뷰</a>'
+        '  <a class="toc-chip" href="#sec-risk">🚨 리스크</a>'
+        '  <a class="toc-chip" href="#sec-rcm">🎯 RCM 매핑</a>'
+        '  <a class="toc-chip" href="#sec-missing">🔍 통제 공백</a>'
+        '  <a class="toc-chip" href="#sec-download">📥 다운로드</a>'
+        '</nav>',
+        unsafe_allow_html=True,
+    )
+
     # ===== KPI tiles (coverage / gaps / confidence) =====
     nodes_for_kpi = parse_nodes(mermaid_raw) or []
     kpis = coverage_kpis(
@@ -1017,6 +1032,7 @@ if "mermaid" in st.session_state:
         )
 
     # ===== Flowchart (PRIMARY DELIVERABLE — show first) =====
+    st.markdown('<span id="sec-flowchart" class="toc-anchor"></span>', unsafe_allow_html=True)
     st.markdown("### 🗺️ Swimlane 플로우차트",
                 help="누가·어떤 시스템이 무엇을 하는지를 부서별 swimlane 으로. "
                      "각 노드 호버 시 매핑된 통제·리스크가 검정 카드로 표시됩니다.")
@@ -1129,6 +1145,7 @@ if "mermaid" in st.session_state:
     key_trail = st.session_state.get("key_trail") or []
     caat_sql  = st.session_state.get("caat_sql") or ""
     if key_trail:
+        st.markdown('<span id="sec-keytrail" class="toc-anchor"></span>', unsafe_allow_html=True)
         st.markdown("### 🔗 꼬리표 추적",
                     help="한 거래의 식별 키(예: SO# → DEL# → INV# → JE#)가 단계마다 "
                          "어떻게 바뀌고 어디서 1:1 추적이 끊기는지. 표본 추출 시 가장 "
@@ -1235,6 +1252,7 @@ if "mermaid" in st.session_state:
     # ===== 인터뷰 추가 질문 (AI가 못 푼 부분 → 담당자 인터뷰 가이드) =====
     interview_qs = st.session_state.get("interview_qs") or []
     if interview_qs:
+        st.markdown('<span id="sec-interview" class="toc-anchor"></span>', unsafe_allow_html=True)
         st.markdown("### 🎤 담당자 인터뷰 추가 질문")
         st.caption("AI가 narrative·증적만으로 확신할 수 없는 부분을 클라이언트 "
                    "담당자에게 던질 구체 질문으로 자동 변환했습니다. "
@@ -1275,6 +1293,7 @@ if "mermaid" in st.session_state:
         )
 
     # ===== Risk Alerts (after the flow) =====
+    st.markdown('<span id="sec-risk" class="toc-anchor"></span>', unsafe_allow_html=True)
     st.markdown("### 🚨 리스크 진단 (3축)",
                 help="완전성(Completeness) / 업무분장(SoD) / 수동개입(Manual) 세 축으로 "
                      "AI 가 자동 진단한 결과. 각 카드는 헤드라인·근거·권고 3행 구조.")
@@ -1341,6 +1360,7 @@ if "mermaid" in st.session_state:
         st.dataframe(proc_df, use_container_width=True, hide_index=True)
 
     # ===== Report download =====
+    st.markdown('<span id="sec-download" class="toc-anchor"></span>', unsafe_allow_html=True)
     st.markdown("### 📥 보고서 다운로드")
     md_report = build_markdown_report(
         scenario_label=scenario_label,
@@ -1368,6 +1388,7 @@ if "mermaid" in st.session_state:
                "자동 렌더링되고, Word·Google Docs에 붙여도 표 구조 그대로 유지됩니다.")
 
     with c2:
+        st.markdown('<span id="sec-rcm" class="toc-anchor"></span>', unsafe_allow_html=True)
         st.markdown("### 🎯 RCM 매핑",
                     help="흐름의 각 단계에 RCM의 어떤 통제가 매칭되는지. "
                          "Confidence 高·中·低 + Gap 여부 표시.")
@@ -1444,6 +1465,7 @@ if "mermaid" in st.session_state:
     missing_list = mc.get("missing_controls") or []
     cov = mc.get("coverage_summary") or {}
     if missing_list or cov:
+        st.markdown('<span id="sec-missing" class="toc-anchor"></span>', unsafe_allow_html=True)
         st.markdown("### 🔍 빠진 통제 — 신규 설계 권고")
         if cov.get("headline_ko"):
             st.caption(cov["headline_ko"])

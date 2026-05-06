@@ -1050,6 +1050,65 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   word-break: keep-all;
 }
 
+/* ============ Section TOC (sticky jump-to-section chips) ============ */
+.section-toc {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 8px;
+  padding: 10px 2px;
+  margin: -4px -2px 14px -2px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(160%) blur(6px);
+  -webkit-backdrop-filter: saturate(160%) blur(6px);
+  border-bottom: 1px solid var(--pwc-grey-3);
+  scrollbar-width: thin;
+}
+.section-toc::-webkit-scrollbar { height: 4px; }
+.section-toc::-webkit-scrollbar-thumb { background: var(--pwc-grey-3); border-radius: 4px; }
+.section-toc-label {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pwc-grey-5);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.toc-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--pwc-grey-3);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--pwc-text) !important;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none !important;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.toc-chip:hover {
+  background: var(--pwc-orange-50);
+  border-color: var(--pwc-orange);
+  color: var(--pwc-orange-700) !important;
+}
+/* Anchor offset so the section header isn't hidden behind the sticky bar */
+.toc-anchor {
+  display: block;
+  height: 0;
+  scroll-margin-top: 72px;
+}
+html { scroll-behavior: smooth; }
+
 /* ============ Narrative <pre> block ============ */
 .narrative-pre {
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Pretendard",
@@ -1074,6 +1133,10 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   h1 { font-size: 1.6rem !important; }
   .page-header { flex-direction: column; align-items: flex-start; }
   .severity-pill { align-self: flex-start; }
+  .section-toc { padding: 8px 2px; gap: 6px; }
+  .section-toc-label { display: none; }
+  .toc-chip { padding: 5px 10px; font-size: 0.78rem; }
+  .toc-anchor { top: -56px; }
   .risk-card { min-height: 0; padding: 18px 18px 18px 22px; }
   .risk-card .risk-headline { font-size: 0.95rem !important; }
   .risk-card .risk-section-body { font-size: 0.86rem !important; }
