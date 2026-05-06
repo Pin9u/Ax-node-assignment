@@ -775,7 +775,7 @@ if run:
             st.warning(f"내러티브 보강 실패 — 원본 그대로 진행: {exc}")
         narrative_for_pipeline = enriched_narrative
 
-        progress.progress(5, text="① 증적 이미지 분석 중…")
+        progress.progress(5, text="① 증적 → 로직 분석 중…")
         findings: List[LogicFinding] = []
         if upload_iter:
             n_total = len(upload_iter)
@@ -1305,8 +1305,9 @@ if "mermaid" in st.session_state:
     # ===== Two-column =====
     c1, c2 = st.columns([1, 1])
     with c1:
-        st.markdown("### 🔍 증적 이미지 분석 결과",
-                    help="업로드한 SQL/설정 캡쳐에서 AI가 추출한 로직과 audit red flags.")
+        st.markdown("### 🧠 로직 분석 결과",
+                    help="업로드한 SQL·설정·매트릭스 캡쳐에서 AI가 추출한 비즈니스 로직과 audit red flags. "
+                         "이미지 자체가 아니라 그 안에 담긴 로직이 핵심입니다.")
         if findings:
             st.dataframe(_findings_to_table(findings), use_container_width=True, hide_index=True)
             for f in findings:

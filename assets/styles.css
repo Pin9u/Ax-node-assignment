@@ -601,9 +601,9 @@ section[data-testid="stSidebar"] .stButton > button:hover {
    show the linkage (via_table + transform_type), red when 1:1 breaks. */
 .key-trail-ribbon {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;   /* always vertical — easier to scan on any screen */
   align-items: stretch;
+  gap: 4px;
   margin: 0 0 14px 0;       /* unified */
   padding: 14px;
   background: #FFFFFF;
@@ -613,8 +613,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   box-shadow: var(--shadow-sm);
 }
 .kt-step {
-  flex: 1 1 160px;
-  min-width: 160px;
+  width: 100%;
   background: var(--pwc-grey-2);
   border: 1px solid var(--pwc-grey-3);
   border-radius: 10px;
@@ -686,35 +685,42 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 }
 .kt-arrow {
   flex: 0 0 auto;
+  width: 100%;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-width: 110px;
-  padding: 0 4px;
+  padding: 6px 0;
 }
 .kt-arrow-line {
-  width: 100%; height: 2px;
+  width: 2px;                  /* vertical line at every width */
+  height: 22px;
+  margin: 0 auto;
   background: var(--pwc-grey-4);
   position: relative;
 }
 .kt-arrow-line::after {
-  content: ""; position: absolute; right: -1px; top: -4px;
-  border-left: 8px solid var(--pwc-grey-4);
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
+  content: ""; position: absolute;
+  /* point the arrow head DOWN */
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid var(--pwc-grey-4);
 }
 .kt-arrow-broken .kt-arrow-line {
+  width: 3px;
   background: var(--sev-high);
   background-image: repeating-linear-gradient(
-    90deg, var(--sev-high) 0 5px, transparent 5px 9px);
-  height: 3px;
+    180deg, var(--sev-high) 0 4px, transparent 4px 8px);
 }
 .kt-arrow-broken .kt-arrow-line::after {
-  border-left-color: var(--sev-high);
+  border-top-color: var(--sev-high);
 }
 .kt-arrow-meta {
-  margin-top: 4px;
+  margin-top: 10px;
   font-size: 0.72rem;
   color: var(--pwc-grey-5);
   text-align: center;
+  max-width: 100%;
   word-break: keep-all;
 }
 .kt-arrow-broken .kt-arrow-meta { color: var(--sev-high); font-weight: 600; }
