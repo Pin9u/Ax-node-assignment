@@ -693,8 +693,48 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   color: var(--sev-high);
 }
 @media (max-width: 720px) {
-  .key-trail-ribbon { flex-direction: column; }
-  .kt-arrow { width: 100%; transform: rotate(90deg); margin: 8px 0; min-width: 0; }
+  .key-trail-ribbon { flex-direction: column; align-items: stretch; }
+  .kt-step  { width: 100%; }
+  .kt-arrow {
+    width: 100%;
+    min-width: 0;
+    transform: none;             /* don't rotate — that flipped the text */
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 0;
+  }
+  .kt-arrow-line {
+    width: 2px;                  /* vertical line on mobile */
+    height: 22px;
+    margin: 0 auto;
+  }
+  .kt-arrow-line::after {
+    /* point the arrow head DOWN, not right */
+    right: auto;
+    top: auto;
+    left: 50%;
+    bottom: -8px;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 8px solid var(--pwc-grey-4);
+    border-bottom: none;
+  }
+  .kt-arrow-broken .kt-arrow-line {
+    width: 3px;
+    background: var(--sev-high);
+    background-image: repeating-linear-gradient(
+      180deg, var(--sev-high) 0 4px, transparent 4px 8px);
+  }
+  .kt-arrow-broken .kt-arrow-line::after {
+    border-top-color: var(--sev-high);
+  }
+  .kt-arrow-meta {
+    margin-top: 10px;
+    text-align: center;
+    max-width: 100%;
+    word-break: keep-all;
+  }
 }
 
 /* Missing-control cards (빠진 통제 — 신규 설계 권고) */
