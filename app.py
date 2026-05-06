@@ -922,10 +922,32 @@ if run:
         st.session_state["narrative_was_enriched"] = enriched_narrative.strip() != original_narrative.strip()
         st.session_state["rcm_intel"] = rcm_intel
 
+    st.session_state["_scroll_to_top"] = True
+
 
 # ---------------------------------------------------------------------------
 # Render results (from session state so reruns stay snappy)
 # ---------------------------------------------------------------------------
+if st.session_state.pop("_scroll_to_top", False):
+    st.components.v1.html(
+        """
+        <script>
+          const doScroll = () => {
+            try { window.parent.scrollTo({ top: 0, behavior: 'instant' }); } catch (e) {}
+            try { window.parent.document.scrollingElement.scrollTop = 0; } catch (e) {}
+            try {
+              const main = window.parent.document.querySelector('section.main, [data-testid="stAppViewContainer"]');
+              if (main) main.scrollTop = 0;
+            } catch (e) {}
+          };
+          doScroll();
+          setTimeout(doScroll, 50);
+          setTimeout(doScroll, 200);
+        </script>
+        """,
+        height=0,
+    )
+
 if "mermaid" in st.session_state:
     findings = st.session_state["findings"]
     mermaid_render = st.session_state["mermaid"]
