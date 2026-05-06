@@ -1006,19 +1006,9 @@ if "mermaid" in st.session_state:
         )
 
     # ===== Flowchart (PRIMARY DELIVERABLE — show first) =====
-    flow_l, flow_r = st.columns([3, 2])
-    with flow_l:
-        st.markdown("### 🗺️ Dynamic Swimlane Flowchart")
-        st.caption("💡 호버 → 통제·리스크 / 빨간 경로 = critical path / 우상단 SVG·PNG로 다운로드")
-    with flow_r:
-        direction = st.radio(
-            "Layout",
-            options=["TB (세로)", "LR (가로)", "RL (역방향)"],
-            index=0, horizontal=True, label_visibility="collapsed",
-            help="긴 프로세스는 LR(가로)이 가독성 ↑",
-        )
-    _dir_map = {"TB (세로)": "TB", "LR (가로)": "LR", "RL (역방향)": "RL"}
-    _dir_code = _dir_map.get(direction, "TB")
+    st.markdown("### 🗺️ Dynamic Swimlane Flowchart")
+    st.caption("💡 호버 → 통제·리스크 / 빨간 경로 = critical path / 우상단 SVG·PNG로 다운로드")
+    _dir_code = "TB"
 
     nodes_for_tip = parse_nodes(mermaid_raw) or []
 
@@ -1124,32 +1114,67 @@ if "mermaid" in st.session_state:
                    "감사 표본 추출의 가장 위험한 구간을 시각화합니다.")
         steps_html: List[str] = []
         for i, step in enumerate(key_trail):
-            kv_disp = (html.escape(step["key_value"]) if step["key_value"]
-                       else "<i>(키값 미상)</i>")
-            kf_disp = html.escape(step["key_field"] or "")
-            sys_disp = html.escape(step["system"] or "")
+            kf  = (step.get("key_field") or "").strip()
+            kv  = (step.get("key_value") or "").strip()
+            sys_disp = html.escape(step.get("system") or "")
+
+            # Combined key line — field = value, or field · 관리 액션 if no value
+            if kf and kv:
+                key_html = (
+                    f'<div class="kt-step-key">🔑 '
+                    f'<span class="kf">{html.escape(kf)}</span>'
+                    f' <span class="kv-eq">=</span> '
+                    f'<span class="kv">{html.escape(kv)}</span>'
+                    f'</div>'
+                )
+            elif kf:
+                key_html = (
+                    f'<div class="kt-step-key">🔑 '
+                    f'<span class="kf">{html.escape(kf)}</span>'
+                    f' <span class="kv-note">· 관리 액션 (거래 키값 없음)</span>'
+                    f'</div>'
+                )
+            else:
+                key_html = ''
+
             steps_html.append(
                 f'<div class="kt-step">'
                 f'  <div class="kt-step-id">{html.escape(step["node_id"])}</div>'
                 f'  <div class="kt-step-label">{html.escape(step["label"])}</div>'
-                f'  <div class="kt-step-key">🔑 {kf_disp}</div>'
-                f'  <div class="kt-step-val">{kv_disp}</div>'
+                f'  {key_html}'
                 f'  <div class="kt-step-sys">🏛 {sys_disp}</div>'
                 f'</div>'
             )
-            # Connector arrow with linkage info
+            # Connector arrow with linkage info — clearer when info missing
             if i < len(key_trail) - 1:
-                via = step["link_via"] or "직접"
-                xform = step["transform"] or ""
-                broken = step["breaks"]
+                via    = (step.get("link_via")  or "").strip()
+                xform  = (step.get("transform") or "").strip()
+                logic  = (step.get("link_logic") or "").strip()
+                note   = (step.get("note") or "").strip()
+                broken = bool(step.get("breaks"))
                 cls = "kt-arrow-broken" if broken else "kt-arrow-ok"
-                badge = " ⚠ 끊김" if broken else ""
-                note = f" · {html.escape(step['note'])}" if step.get("note") else ""
+
+                # Decide what label to show — never the misleading "via 직접"
+                if not via and not xform and not logic and not note:
+                    meta_html = '<span class="kt-arrow-unknown">연결 정보 미상 — 인터뷰 필요</span>'
+                else:
+                    parts = []
+                    if via:
+                        parts.append(f'via <b>{html.escape(via)}</b>')
+                    elif logic:
+                        parts.append('직접 join')
+                    if xform:
+                        parts.append(html.escape(xform))
+                    if broken:
+                        parts.append('⚠ 끊김')
+                    if note:
+                        parts.append(html.escape(note))
+                    meta_html = ' · '.join(parts)
+
                 steps_html.append(
                     f'<div class="kt-arrow {cls}">'
                     f'  <div class="kt-arrow-line"></div>'
-                    f'  <div class="kt-arrow-meta">via <b>{html.escape(via)}</b>'
-                    f'    · {html.escape(xform)}{badge}{note}</div>'
+                    f'  <div class="kt-arrow-meta">{meta_html}</div>'
                     f'</div>'
                 )
         st.markdown(
