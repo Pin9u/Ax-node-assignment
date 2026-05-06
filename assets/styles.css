@@ -684,7 +684,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 }
 .kt-arrow-broken .kt-arrow-meta { color: var(--sev-high); font-weight: 600; }
 .kt-warn {
-  margin: 8px 0 0 0;
+  margin: 8px 0 24px 0;     /* breathing room before the CAAT expander */
   padding: 10px 14px;
   background: rgba(220, 38, 38, 0.06);
   border: 1px solid rgba(220, 38, 38, 0.30);
