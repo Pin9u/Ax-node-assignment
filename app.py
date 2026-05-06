@@ -473,7 +473,7 @@ with st.sidebar:
         )
 
         st.markdown("---")
-        st.markdown("### 0) 감사 대상 프로세스")
+        st.markdown("### 1) 감사 대상 프로세스")
         process_choice = st.selectbox(
             "Process",
             options=[
@@ -532,7 +532,7 @@ with st.sidebar:
             )
         reference_sample = reference_sample or ""
 
-        st.markdown("### 1) 인터뷰 내러티브")
+        st.markdown("### 2) 인터뷰 내러티브")
         narrative = st.text_area(
             "고객 인터뷰 메모",
             height=180,
@@ -544,12 +544,12 @@ with st.sidebar:
             help="짧게 써도 OK. AI가 산업 맥락으로 통제점·SoD까지 추정해 보강합니다 ([추정] 태그로 표시).",
         )
         st.caption("💡 한두 문장 + 산업명만 적어도 됩니다. 자세할수록 정확도 ↑")
-        st.markdown("### 2) 로직 증적 이미지")
+        st.markdown("### 3) 로직 증적 이미지")
         image_files = st.file_uploader(
             "SQL · 설정 캡쳐본 (다중 업로드 가능)",
             accept_multiple_files=True, type=["png", "jpg", "jpeg", "webp"],
         )
-        st.markdown("### 3) RCM 파일")
+        st.markdown("### 4) RCM 파일")
         rcm_file = st.file_uploader("CSV 또는 Excel", type=["csv", "xlsx"])
         use_sample_rcm = st.checkbox("샘플 RCM 사용", value=not bool(rcm_file))
 
@@ -963,23 +963,25 @@ if "mermaid" in st.session_state:
     n_total_conf = max(1, sum(conf.values()))
     high_pct = round(100 * conf["High"] / n_total_conf)
     conf_color = "ok" if high_pct >= 60 else ("warn" if high_pct >= 30 else "bad")
+    relevant = kpis.get("relevant_nodes", kpis.get("mapped_nodes", 0))
+    effective = kpis.get("effective_nodes", kpis.get("mapped_nodes", 0))
     st.markdown(
         f'<div class="kpi-row">'
         f'  <div class="kpi-tile kpi-{cov_color}">'
-        f'    <div class="kpi-label">📐 매핑 커버리지</div>'
+        f'    <div class="kpi-label">📐 통제 매핑률</div>'
         f'    <div class="kpi-value">{kpis["coverage_pct"]}<span class="kpi-unit">%</span></div>'
-        f'    <div class="kpi-meta">{kpis["mapped_nodes"]} / {kpis["total_nodes"]} 노드</div>'
+        f'    <div class="kpi-meta">통제 대상 {relevant}개 중 {effective}개 작동</div>'
         f'  </div>'
         f'  <div class="kpi-tile kpi-{gap_color}">'
         f'    <div class="kpi-label">⚠ 통제 공백</div>'
         f'    <div class="kpi-value">{kpis["gap_count"]}<span class="kpi-unit">건</span></div>'
-        f'    <div class="kpi-meta">Design Control 권고</div>'
+        f'    <div class="kpi-meta">신규 설계 권고</div>'
         f'  </div>'
         f'  <div class="kpi-tile kpi-{conf_color}">'
-        f'    <div class="kpi-label">🎯 매핑 신뢰도</div>'
-        f'    <div class="kpi-value">{high_pct}<span class="kpi-unit">% High</span></div>'
+        f'    <div class="kpi-label">🎯 매칭 정확도</div>'
+        f'    <div class="kpi-value">{high_pct}<span class="kpi-unit">% 高</span></div>'
         f'    <div class="kpi-meta">'
-        f'      H {conf["High"]} · M {conf["Medium"]} · L {conf["Low"]}'
+        f'      高 {conf["High"]} · 中 {conf["Medium"]} · 低 {conf["Low"]}'
         f'    </div>'
         f'  </div>'
         f'</div>',
@@ -1006,8 +1008,17 @@ if "mermaid" in st.session_state:
         )
 
     # ===== Flowchart (PRIMARY DELIVERABLE — show first) =====
-    st.markdown("### 🗺️ Dynamic Swimlane Flowchart")
-    st.caption("💡 호버 → 통제·리스크 / 빨간 경로 = critical path / 우상단 SVG·PNG로 다운로드")
+    st.markdown("### 🗺️ Swimlane 플로우차트",
+                help="누가·어떤 시스템이 무엇을 하는지를 부서별 swimlane 으로. "
+                     "각 노드 호버 시 매핑된 통제·리스크가 검정 카드로 표시됩니다.")
+    st.markdown(
+        '<div class="chart-legend">'
+        '⚫ 자동통제 ⚪ 수동 🟠 통제점 🔴 리스크  '
+        '/  <span style="color:#DC2626;font-weight:700">빨강 외곽 = 고위험 경로</span>  '
+        '/  우상단 SVG·PNG로 슬라이드 export'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     _dir_code = "TB"
 
     nodes_for_tip = parse_nodes(mermaid_raw) or []
@@ -1109,9 +1120,11 @@ if "mermaid" in st.session_state:
     key_trail = st.session_state.get("key_trail") or []
     caat_sql  = st.session_state.get("caat_sql") or ""
     if key_trail:
-        st.markdown("### 🔗 꼬리표 추적 (Key Trail)")
-        st.caption("거래의 식별 키가 단계마다 어떻게 바뀌고 어디서 끊기는지 — "
-                   "감사 표본 추출의 가장 위험한 구간을 시각화합니다.")
+        st.markdown("### 🔗 꼬리표 추적",
+                    help="한 거래의 식별 키(예: SO# → DEL# → INV# → JE#)가 단계마다 "
+                         "어떻게 바뀌고 어디서 1:1 추적이 끊기는지. 표본 추출 시 가장 "
+                         "주의해야 할 구간을 빨간 점선으로 표시.")
+        st.caption("거래 키값의 변화·끊김 지점을 시각화 — 표본 추출의 가장 위험한 구간")
         steps_html: List[str] = []
         for i, step in enumerate(key_trail):
             kf  = (step.get("key_field") or "").strip()
@@ -1128,10 +1141,14 @@ if "mermaid" in st.session_state:
                     f'</div>'
                 )
             elif kf:
+                # Config / admin nodes that influence the process but don't carry
+                # a transaction-level key value of their own.
                 key_html = (
-                    f'<div class="kt-step-key">🔑 '
-                    f'<span class="kf">{html.escape(kf)}</span>'
-                    f' <span class="kv-note">· 관리 액션 (거래 키값 없음)</span>'
+                    f'<div class="kt-step-key" title="이 노드는 거래 단계 자체는 '
+                    f'아니지만, 거래 정산·인식에 영향을 주는 환경·룰 변경입니다. '
+                    f'(예: 프로모션 룰 등록, 임계값 변경, 계정 마스터 변경)">'
+                    f'🔑 <span class="kf">{html.escape(kf)}</span>'
+                    f' <span class="kv-note">· 관리 액션 (거래 키값 없음) ⓘ</span>'
                     f'</div>'
                 )
             else:
@@ -1193,9 +1210,9 @@ if "mermaid" in st.session_state:
             )
 
         if caat_sql:
-            with st.expander("🔍 CAAT SQL 자동 생성 (위 lineage end-to-end JOIN)"):
-                st.caption("감사인이 DB에 그대로 던질 수 있는 SQL skeleton. "
-                           "환경별 컬럼명·alias 검증 후 사용하세요.")
+            with st.expander("🔍 전수검사 SQL 자동 생성 (CAAT)"):
+                st.caption("환경별 컬럼명·alias만 보정하면 바로 실행 가능한 모집단 "
+                           "전수검사 쿼리. 감사인이 DBA 에 던지면 끝.")
                 st.code(caat_sql, language="sql")
                 st.download_button(
                     label="📥 CAAT SQL 파일로 다운로드 (.sql)",
@@ -1248,7 +1265,9 @@ if "mermaid" in st.session_state:
         )
 
     # ===== Risk Alerts (after the flow) =====
-    st.markdown("### 🚨 Risk Alert System")
+    st.markdown("### 🚨 리스크 진단 (3축)",
+                help="완전성(Completeness) / 업무분장(SoD) / 수동개입(Manual) 세 축으로 "
+                     "AI 가 자동 진단한 결과. 각 카드는 헤드라인·근거·권고 3행 구조.")
     rc1, rc2, rc3 = st.columns(3)
     with rc1: _render_risk_card("(A) Completeness", risks.get("completeness"))
     with rc2: _render_risk_card("(B) Segregation of Duties", risks.get("sod"))
@@ -1257,7 +1276,8 @@ if "mermaid" in st.session_state:
     # ===== Two-column =====
     c1, c2 = st.columns([1, 1])
     with c1:
-        st.markdown("### 🔍 Vision 로직 분석 결과")
+        st.markdown("### 🔍 증적 이미지 분석 결과",
+                    help="업로드한 SQL/설정 캡쳐에서 AI가 추출한 로직과 audit red flags.")
         if findings:
             st.dataframe(_findings_to_table(findings), use_container_width=True, hide_index=True)
             for f in findings:
@@ -1291,7 +1311,9 @@ if "mermaid" in st.session_state:
         rcm_df,
     )
     if procedures:
-        st.markdown("### 🧪 추천 감사 절차 (TOD / TOE)")
+        st.markdown("### 🧪 추천 감사 절차",
+                    help="Test of Design / Test of Operating Effectiveness. "
+                         "통제 빈도·자동화 수준에 따라 표본·증빙·시점 자동 추천.")
         st.caption("통제 빈도·자동화 수준에 따라 자동 추천된 표본·증빙·시점입니다. "
                    "프로젝트별 위험 평가 결과로 조정하세요.")
         proc_df = pd.DataFrame([
@@ -1336,7 +1358,9 @@ if "mermaid" in st.session_state:
                "자동 렌더링되고, Word·Google Docs에 붙여도 표 구조 그대로 유지됩니다.")
 
     with c2:
-        st.markdown("### 🎯 Smart RCM Mapping")
+        st.markdown("### 🎯 RCM 매핑",
+                    help="흐름의 각 단계에 RCM의 어떤 통제가 매칭되는지. "
+                         "Confidence 高·中·低 + Gap 여부 표시.")
         # ── RCM 자동 진단 패널 (Real Mode only) ────────────────────
         rcm_intel = st.session_state.get("rcm_intel") or {}
         if rcm_intel:

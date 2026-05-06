@@ -164,17 +164,24 @@ def coverage_kpis(
     mappings: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Top-of-page KPI tile data:
-       - mapping coverage (mapped / total nodes)
+       - control coverage (effective controls / control-relevant nodes)
        - gap count
        - confidence distribution
+
+    "Control-relevant" = nodes the auditor decided to map onto the RCM
+    (i.e., len(mappings)) — NOT every node on the chart, because
+    external-actor nodes / pure data-store nodes don't need their own
+    control. Denominator = len(mappings); numerator = mappings with a
+    matched_control_id AND is_gap=False (= operating effectively).
     """
-    total = len(nodes) if nodes else 0
-    mapped_ids = {m.get("node_id") for m in mappings if m.get("matched_control_id")}
-    n_mapped = len(mapped_ids)
+    total_nodes = len(nodes) if nodes else 0
+    n_relevant = len(mappings)
+    n_effective = sum(
+        1 for m in mappings
+        if m.get("matched_control_id") and not m.get("is_gap")
+    )
     n_gaps = sum(1 for m in mappings if m.get("is_gap"))
-    # Only count confidence for mappings that ACTUALLY matched a control —
-    # gap rows otherwise pollute the High% metric and make a 75% honest
-    # match-quality look like 43%.
+    # Only count confidence for mappings that actually matched
     conf = {"High": 0, "Medium": 0, "Low": 0}
     for m in mappings:
         if not m.get("matched_control_id"):
@@ -182,11 +189,13 @@ def coverage_kpis(
         c = (m.get("confidence") or "").capitalize()
         if c in conf:
             conf[c] += 1
-    cov_pct = round(100 * n_mapped / total, 1) if total else 0.0
+    cov_pct = round(100 * n_effective / n_relevant, 1) if n_relevant else 0.0
     return {
-        "total_nodes":   total,
-        "mapped_nodes":  n_mapped,
-        "coverage_pct":  cov_pct,
-        "gap_count":     n_gaps,
-        "confidence":    conf,
+        "total_nodes":      total_nodes,         # all chart nodes (info)
+        "relevant_nodes":   n_relevant,          # nodes that need a control
+        "effective_nodes":  n_effective,         # mapped + operating
+        "mapped_nodes":     n_effective,         # alias for backward compat
+        "coverage_pct":     cov_pct,             # effective / relevant
+        "gap_count":        n_gaps,
+        "confidence":       conf,
     }

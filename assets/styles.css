@@ -558,6 +558,18 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   border-color: rgba(5, 150, 105, 0.25);
 }
 
+/* Chart legend — explains node colors so the reader doesn't have to guess */
+.chart-legend {
+  font-size: 0.78rem;
+  color: var(--pwc-grey-5);
+  margin: 4px 0 12px 0;
+  padding: 8px 12px;
+  background: var(--pwc-grey-2);
+  border-radius: 8px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
 /* Lane risk row (right above the flowchart) */
 .lane-row {
   display: flex;
