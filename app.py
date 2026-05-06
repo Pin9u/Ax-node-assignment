@@ -1131,9 +1131,9 @@ if "mermaid" in st.session_state:
             kv  = (step.get("key_value") or "").strip()
             sys_disp = html.escape(step.get("system") or "")
 
-            # Two-row key block — field on top, value below — keeps long
-            # values from wrapping mid-string and breaks the column name
-            # cleanly from the value chip.
+            # Always 2-row layout for visual consistency: field on top, value
+            # (or "관리 액션" note) below. Empty-value nodes used to put the
+            # 🔑 alone on a flex row which left awkward whitespace.
             if kf and kv:
                 key_html = (
                     f'<div class="kt-step-key">'
@@ -1143,14 +1143,13 @@ if "mermaid" in st.session_state:
                     f'</div>'
                 )
             elif kf:
-                # Config / admin nodes that influence the process but don't carry
-                # a transaction-level key value of their own.
+                # Config / admin nodes — same 2-row layout, row2 carries the note
                 key_html = (
                     f'<div class="kt-step-key" title="이 노드는 거래 단계 자체는 '
                     f'아니지만, 거래 정산·인식에 영향을 주는 환경·룰 변경입니다. '
                     f'(예: 프로모션 룰 등록, 임계값 변경, 계정 마스터 변경)">'
-                    f'🔑 <span class="kf">{html.escape(kf)}</span>'
-                    f' <span class="kv-note">· 관리 액션 (거래 키값 없음) ⓘ</span>'
+                    f'  <div class="kt-key-row1">🔑 <span class="kf">{html.escape(kf)}</span></div>'
+                    f'  <div class="kt-key-row2"><span class="kv-note">관리 액션 (거래 키값 없음) ⓘ</span></div>'
                     f'</div>'
                 )
             else:

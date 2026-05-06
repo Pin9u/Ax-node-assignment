@@ -650,7 +650,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
   flex-direction: column;
   gap: 3px;
 }
-.kt-key-row1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kt-key-row1 { word-break: break-all; }
 .kt-key-row2 { padding-left: 18px; word-break: break-all; }
 .kt-step-key .kf {
   color: var(--pwc-grey-5);   /* field name = subtle */

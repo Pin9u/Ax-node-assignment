@@ -181,10 +181,12 @@ def coverage_kpis(
         if m.get("matched_control_id") and not m.get("is_gap")
     )
     n_gaps = sum(1 for m in mappings if m.get("is_gap"))
-    # Only count confidence for mappings that actually matched
+    # Confidence is reported only for *effectively operating* controls so the
+    # denominator matches the headline "X개 작동" — otherwise users see
+    # "통제 4개 vs 정확도 5개" mismatch (S4 has a matched control but is_gap=True).
     conf = {"High": 0, "Medium": 0, "Low": 0}
     for m in mappings:
-        if not m.get("matched_control_id"):
+        if not m.get("matched_control_id") or m.get("is_gap"):
             continue
         c = (m.get("confidence") or "").capitalize()
         if c in conf:

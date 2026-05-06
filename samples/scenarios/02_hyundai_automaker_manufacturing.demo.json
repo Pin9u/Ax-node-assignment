@@ -112,5 +112,382 @@
     "sod": "🚨 **APL 단가 변경자 = PRICE_HOLD 해제자 동일**\n발견 근거: 인터뷰 §4-ⓓ — 영업관리팀 시니어 2명 동시 권한 보유.\n권고: GRC 룰셋에 충돌역할 추가 후 분기리뷰 — Inquiry + Inspection.",
     "manual": "🚨 **PRICE_HOLD 무사유 해제 + RETRO_RULE 단독변경**\n발견 근거: 인터뷰 §3-(B), §3-(C).\n권고: 사유 입력 강제 + RETRO_RULE 메이커-체커 즉시 가동 — Inspection.",
     "overall_severity": "High"
+  },
+  "plan": {
+    "process": "매출 (자동차부품 OEM JIT)",
+    "mode": "transaction_trace",
+    "sample_transaction": "현대차 OEM · 부품번호 87123-AAA · 1,200 EA · ₩48,000,000 · 2026-04-22",
+    "lanes": [
+      {
+        "id": "OEM",
+        "label_ko": "🏢 OEM (외부 EDI)",
+        "sequence_index": 0
+      },
+      {
+        "id": "ERP",
+        "label_ko": "⚙ SAP S/4HANA",
+        "sequence_index": 1
+      },
+      {
+        "id": "OPS",
+        "label_ko": "🏭 MES / WMS",
+        "sequence_index": 2
+      },
+      {
+        "id": "FIN",
+        "label_ko": "💰 재무·영업관리",
+        "sequence_index": 3
+      }
+    ],
+    "nodes": [
+      {
+        "id": "O1",
+        "lane": "OEM",
+        "label_ko": "Forecast & JIT call-off",
+        "shape": "round",
+        "cls": "manual",
+        "system": "OEM EDI (VDA/OFTP)",
+        "tables": [
+          "edi_inbox"
+        ],
+        "data_action": "INSERT",
+        "key_field": "edi_inbox.message_id",
+        "key_value": "VDA4905-2026-0422-0017",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "",
+          "join_logic": "edi_inbox.po_no = vbak.bstnk",
+          "transform_type": "1:1",
+          "breaks_lineage": false,
+          "note": "OEM PO 번호 → ERP SO 매핑"
+        }
+      },
+      {
+        "id": "E1",
+        "lane": "ERP",
+        "label_ko": "SO 자동 변환",
+        "shape": "process",
+        "cls": "automated",
+        "system": "SAP S/4HANA",
+        "tables": [
+          "VBAK",
+          "VBAP"
+        ],
+        "data_action": "INSERT",
+        "key_field": "VBAK.VBELN",
+        "key_value": "SO-2026-3382",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "VBAK",
+          "join_logic": "VBAK.VBELN inner check",
+          "transform_type": "1:1",
+          "breaks_lineage": false
+        }
+      },
+      {
+        "id": "E2",
+        "lane": "ERP",
+        "label_ko": "단가 ±0.5% 이탈?",
+        "shape": "decision",
+        "cls": "control",
+        "system": "SAP S/4HANA",
+        "tables": [
+          "VBAP",
+          "KONV",
+          "apl_master"
+        ],
+        "data_action": "READ",
+        "key_field": "VBAP.POSNR",
+        "key_value": "10",
+        "evidence_source": "vision: retro_pricing.sql §11"
+      },
+      {
+        "id": "E3",
+        "lane": "ERP",
+        "label_ko": "PRICE_HOLD 본부장 무사유 해제",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "SAP S/4HANA",
+        "tables": [
+          "VBAK",
+          "VBUK"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "VBUK.GBSTK",
+        "key_value": "(hold released)",
+        "evidence_source": "narrative §3-(B)"
+      },
+      {
+        "id": "M1",
+        "lane": "OPS",
+        "label_ko": "양산 시퀀스",
+        "shape": "process",
+        "cls": "automated",
+        "system": "MES (자체)",
+        "tables": [
+          "mes_workorder"
+        ],
+        "data_action": "INSERT",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "mes_workorder",
+          "join_logic": "mes_workorder.so_id = VBAK.VBELN",
+          "transform_type": "1:1",
+          "breaks_lineage": false
+        }
+      },
+      {
+        "id": "M2",
+        "lane": "OPS",
+        "label_ko": "ASN 발행 + 출하 트리거",
+        "shape": "process",
+        "cls": "automated",
+        "system": "WMS (SAP EWM)",
+        "tables": [
+          "LIKP",
+          "LIPS",
+          "VBFA"
+        ],
+        "data_action": "INSERT",
+        "key_field": "LIKP.VBELN",
+        "key_value": "DN-2026-7234",
+        "evidence_source": "narrative §1",
+        "linkage_to_next": {
+          "via_table": "VBFA",
+          "join_logic": "VBFA.VBELV = LIKP.VBELN",
+          "transform_type": "1:N",
+          "breaks_lineage": false,
+          "note": "출하 분할 가능"
+        }
+      },
+      {
+        "id": "E4",
+        "lane": "ERP",
+        "label_ko": "월말 RETRO 단가 소급",
+        "shape": "process",
+        "cls": "control",
+        "system": "SAP S/4HANA",
+        "tables": [
+          "VBRK",
+          "VBRP",
+          "retro_adj_line"
+        ],
+        "data_action": "INSERT",
+        "key_field": "VBRK.VBELN",
+        "key_value": "INV-2026-A-9911",
+        "evidence_source": "vision: retro_pricing.sql §1",
+        "linkage_to_next": {
+          "via_table": "",
+          "join_logic": "BKPF.AWKEY = LPAD(VBRK.VBELN,10) || VBRK.GJAHR",
+          "transform_type": "formula",
+          "breaks_lineage": true,
+          "note": "환율(USD→KRW) 평균환율 적용 + AWKEY 변환 → 1:1 깨짐"
+        }
+      },
+      {
+        "id": "F1",
+        "lane": "FIN",
+        "label_ko": "RETRO_RULE 단독 변경",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "SAP S/4HANA",
+        "tables": [
+          "retro_rule",
+          "retro_rule_hist"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "retro_rule.rule_id",
+        "evidence_source": "narrative §3-(C)"
+      },
+      {
+        "id": "F2",
+        "lane": "FIN",
+        "label_ko": "PPV 정산 단독 분개",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "SAP FI",
+        "tables": [
+          "BKPF",
+          "BSEG"
+        ],
+        "data_action": "POST",
+        "key_field": "BKPF.BELNR",
+        "key_value": "0090019501",
+        "evidence_source": "narrative §4-ⓒ"
+      }
+    ],
+    "edges": [
+      {
+        "from_id": "O1",
+        "to_id": "E1",
+        "label_ko": "EDI VDA4905"
+      },
+      {
+        "from_id": "E1",
+        "to_id": "E2"
+      },
+      {
+        "from_id": "E2",
+        "to_id": "E3",
+        "condition": "이탈"
+      },
+      {
+        "from_id": "E2",
+        "to_id": "M1",
+        "condition": "정상"
+      },
+      {
+        "from_id": "M1",
+        "to_id": "M2"
+      },
+      {
+        "from_id": "M2",
+        "to_id": "E4",
+        "label_ko": "SHIP_OUT"
+      },
+      {
+        "from_id": "F1",
+        "to_id": "E4"
+      },
+      {
+        "from_id": "E4",
+        "to_id": "F2"
+      }
+    ],
+    "journal_entry": {
+      "doc_no": "0090019501",
+      "posting_date": "2026-04-30",
+      "system": "SAP FI",
+      "tables": [
+        "BKPF",
+        "BSEG"
+      ],
+      "lines": [
+        {
+          "side": "Dr",
+          "account": "외상매출금",
+          "amount": "₩52,800,000",
+          "memo": "VAT 포함"
+        },
+        {
+          "side": "Cr",
+          "account": "매출",
+          "amount": "₩48,000,000"
+        },
+        {
+          "side": "Cr",
+          "account": "VAT 예수금",
+          "amount": "₩ 4,800,000"
+        }
+      ]
+    },
+    "interview_questions": [
+      {
+        "topic": "EDI 메시지 정합성",
+        "why_needed": "EDI_EXCEPTION 재처리 후 사후 모니터링 절차 narrative에 명시 X",
+        "questions": [
+          "edi_inbox 의 message_id 가 VBAK.BSTNK 매핑에 실패한 경우 EDI_EXCEPTION 적재 → 다음 단계가 무엇인가요?",
+          "재무팀이 EDI_EXCEPTION 잔존건을 일별로 모니터링하나요? 결과 sign-off 증빙은?"
+        ]
+      },
+      {
+        "topic": "PRICE_HOLD 해제 근거",
+        "why_needed": "본부장 단독 해제이지만 사유 기록 필수 여부 불명",
+        "questions": [
+          "PRICE_HOLD 해제 시 시스템이 사유 입력을 강제하나요?",
+          "해제 이력(VBUK.GBSTK 변경)에 대한 분기 검토는 누가 수행하나요?"
+        ]
+      },
+      {
+        "topic": "RETRO 단가 소급 — 1:1 끊김 구간",
+        "why_needed": "환율 적용 + AWKEY 변환에서 1:1 추적 끊김",
+        "questions": [
+          "월말 RETRO_ADJ_LINE 산출 시 평균환율 산식과 적용 시점은?",
+          "VBRK → BKPF AWKEY 변환의 round-tripping 검증 절차가 있나요?",
+          "RETRO_RULE 변경의 메이커-체커 운영 여부는?"
+        ]
+      },
+      {
+        "topic": "PPV 분개 사후 검토",
+        "why_needed": "재무팀 단독 등록·게시 — CFO 사후 리뷰 운영 형태 불명",
+        "questions": [
+          "PPV 정산 분개를 매월 CFO가 어떤 양식으로 검토·서명하나요?",
+          "분개 등록자와 검토자가 시스템적으로 분리되어 있나요?"
+        ]
+      }
+    ]
+  },
+  "missing_controls": {
+    "missing_controls": [
+      {
+        "node_id": "E3",
+        "node_label": "PRICE_HOLD 본부장 무사유 해제",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "PRICE_HOLD 해제 시 사유 입력·증빙 첨부 강제 + 분기 사후 검토",
+        "why_needed_ko": "본부장 단독 해제는 단가 통제 우회 직결 — SOX 매출 통제 핵심 결함",
+        "recommended_id": "[NEW] RC-MFG-HOLD-01",
+        "recommended_activity_ko": "PRICE_HOLD 해제 시 GUI에 사유 + APL 비교 증빙 첨부 강제, 미입력 시 차단. 분기별 영업관리팀장이 해제건 100% 사후 검토.",
+        "expected_frequency": "Per Transaction",
+        "expected_owner": "영업관리팀 본부장(해제) → 분기 검토자",
+        "priority": "High",
+        "rationale_ko": "단가 우회는 매출 직접 왜곡 — 즉시 가동 필요"
+      },
+      {
+        "node_id": "F1",
+        "node_label": "RETRO_RULE 단독 변경",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "RETRO_RULE 변경 메이커-체커 2단 + 환율 산식 검증",
+        "why_needed_ko": "RETRO 단가 소급은 환율 + 산식 결합 — 임의 변경 시 매출 인식 시점·금액 모두 영향",
+        "recommended_id": "[NEW] RC-MFG-RETRO-MC-01",
+        "recommended_activity_ko": "RETRO_RULE 변경은 메이커(영업관리)·체커(재무) 2단 승인 + 변경 후 직전월 회귀 평가 강제",
+        "expected_frequency": "Per Change",
+        "expected_owner": "영업관리(메이커) + 재무(체커)",
+        "priority": "High"
+      },
+      {
+        "node_id": "O1",
+        "node_label": "Forecast & JIT call-off",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "EDI_EXCEPTION 일배치 모니터링 + D+1 해소 통제",
+        "why_needed_ko": "OEM EDI 누락 = 매출 누락 직결 — VDA 무결성만으론 부족",
+        "recommended_id": "[NEW] RC-MFG-EDI-MON-01",
+        "recommended_activity_ko": "edi_inbox 미매핑 메시지를 일배치로 EDI_EXCEPTION 큐에 적재, 익영업일 IT운영팀 0건 해소 sign-off",
+        "expected_frequency": "Daily",
+        "expected_owner": "IT운영팀 + 재무팀(검토)",
+        "priority": "High"
+      },
+      {
+        "node_id": "E4",
+        "node_label": "월말 RETRO 단가 소급",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "RETRO_ADJ_LINE 회계팀 재계산 검증 + 환율 라인업 확인",
+        "why_needed_ko": "1:1 끊김 구간 — 사업관리 단독 검토만으론 SOX 부족",
+        "recommended_id": "[NEW] RC-MFG-RETRO-VER-01",
+        "recommended_activity_ko": "월말 RETRO_ADJ 결과를 회계팀이 환율·산식 기준 재계산 후 CFO 서명",
+        "expected_frequency": "Monthly",
+        "expected_owner": "회계팀 + CFO 서명",
+        "priority": "Medium"
+      },
+      {
+        "node_id": "F2",
+        "node_label": "PPV 정산 단독 분개",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "PPV manual JE CFO 전수 검토·서명 (RC-ACC-001 강화)",
+        "why_needed_ko": "재무팀 단독 등록·게시 — SOX 명백한 결함",
+        "recommended_id": "[ENHANCE] RC-ACC-001",
+        "recommended_activity_ko": "PPV 관련 manual JE를 매월 CFO 가 전수 시스템 서명 + 증빙 첨부 강제",
+        "expected_frequency": "Monthly",
+        "expected_owner": "재무(기안) → CFO(서명)",
+        "priority": "High"
+      }
+    ],
+    "coverage_summary": {
+      "total_nodes": 9,
+      "mapped_nodes": 5,
+      "gap_nodes": 2,
+      "missing_designs": 5,
+      "high_priority": 4,
+      "headline_ko": "OEM JIT 매출 9개 노드 중 5개 매핑·2개 공백. 산업표준 비교 시 5개 신규 통제 설계 (High 4건). PRICE_HOLD 사유 강제·EDI 예외 모니터링·RETRO 메이커-체커는 즉시 신설 필요."
+    }
   }
 }
