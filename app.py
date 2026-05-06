@@ -34,7 +34,7 @@ from modules.audit_procedures import coverage_kpis, generate_procedures
 from modules.caat_sql_generator import generate_caat_sql, key_trail_for_ribbon
 from modules.critical_path import (
     annotate_critical_path, extract_edges, find_critical_path,
-    score_lanes, score_node,
+    score_node,
 )
 from modules.missing_control_detector import (
     detect_missing_controls, heuristic_missing_controls,
@@ -1037,28 +1037,6 @@ if "mermaid" in st.session_state:
     valid_ids = {n.node_id for n in nodes_for_tip}
     edges = extract_edges(mermaid_raw, valid_ids)
     crit = find_critical_path(nodes_for_tip, edges, node_scores)
-
-    # Lane risk scorecard — one chip per swimlane, sorted worst-first
-    lane_scores = score_lanes(nodes_for_tip, node_scores)
-    if lane_scores:
-        chips = []
-        for lb in lane_scores:
-            ri = lb["risk_index"]
-            tone = "rcm-chip-out" if ri < 30 else ("rcm-chip-in" if ri < 60 else "lane-chip-bad")
-            counts = (f"R{lb.get('risk',0)} · M{lb.get('manual',0)} · "
-                      f"C{lb.get('control',0)} · A{lb.get('automated',0)}")
-            chips.append(
-                f'<span class="rcm-chip {tone} lane-chip" '
-                f'title="{html.escape(counts)}">'
-                f'{html.escape(lb["lane"])} · {ri}</span>'
-            )
-        st.markdown(
-            f'<div class="lane-row">'
-            f'  <span class="lane-row-label">Lane Risk Index ↓</span>'
-            f'  {" ".join(chips)}'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
 
     # Carry the lane info into the mapping dict so tooltips can show "[lane] label"
     mapping_for_tip = dict(mapping_result or {})
