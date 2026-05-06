@@ -698,11 +698,50 @@ if run:
         st.session_state["mermaid_raw"] = cache.get("mermaid_raw", "")
         # In demo mode the cache was built without in-label tags; use raw for rendering
         st.session_state["mermaid"] = cache.get("mermaid_raw", "")
-        st.session_state["mapping"] = cache.get("rcm_mapping", {"mappings": [], "gap_summary_ko": ""})
+        mapping_demo = cache.get("rcm_mapping", {"mappings": [], "gap_summary_ko": ""})
+        st.session_state["mapping"] = mapping_demo
         st.session_state["risks"] = cache.get("risks", {})
         st.session_state["rcm_df"] = rcm_df
         st.session_state["scenario_label"] = scen["label_ko"]
         st.session_state["narrative_preview"] = Path(scen["narrative_path"]).read_text(encoding="utf-8")
+
+        # ── Demo Mode: hydrate the new sections from cache.plan if present,
+        #    otherwise fall back to heuristics so every scenario still shows
+        #    the most-actionable parts (missing controls especially). ──
+        plan_raw = cache.get("plan")
+        if plan_raw:
+            try:
+                from modules.flowchart_planner import plan_from_json
+                plan_obj = plan_from_json(plan_raw)
+                st.session_state["key_trail"]    = key_trail_for_ribbon(plan_obj)
+                st.session_state["caat_sql"]     = generate_caat_sql(plan_obj)
+                st.session_state["interview_qs"] = list(plan_obj.interview_questions)
+            except Exception:
+                st.session_state["key_trail"]    = []
+                st.session_state["caat_sql"]     = ""
+                st.session_state["interview_qs"] = []
+        else:
+            st.session_state["key_trail"]    = []
+            st.session_state["caat_sql"]     = ""
+            st.session_state["interview_qs"] = []
+
+        # Missing controls — prefer baked-in (LLM-quality), else heuristic
+        if cache.get("missing_controls"):
+            st.session_state["missing_controls"] = cache["missing_controls"]
+        else:
+            from modules.missing_control_detector import heuristic_missing_controls
+            from modules.flowchart_generator import parse_nodes as _pn
+            _nodes_demo = _pn(cache.get("mermaid_raw", "")) or []
+            st.session_state["missing_controls"] = heuristic_missing_controls(
+                [n.to_dict() for n in _nodes_demo], mapping_demo,
+            )
+
+        # Other Real-Mode-only side panels — keep empty in Demo
+        st.session_state["plan_validation"]   = {}
+        st.session_state["rcm_intel"]         = {}
+        st.session_state["narrative_was_enriched"] = False
+        st.session_state["narrative_original"]     = ""
+
         st.toast(f"🎬 {scen['label_ko']} 시나리오 로드 완료", icon="✅")
     else:
         # ---------------- Real Mode ----------------

@@ -156,5 +156,429 @@
     "sod": "🚨 **정산팀 시니어의 등록·승인 동시 보유**\n발견 근거: PROMO_RULE 변경자 settle.kim 단독등록 (sample_promo_config_screenshot.png).\n권고: GRC 룰 보강 후 재 inquiry — RC-SOD-001 운영 확인.",
     "manual": "🚨 **음수잔액·전액무료 룰 단독등록**\n발견 근거: PR-119 `-200% (NEG)` 단독등록.\n권고: PROMO_RULE_HIST 100% 인용 검토 + RC-SET-002 메이커-체커 가동.",
     "overall_severity": "High"
+  },
+  "plan": {
+    "process": "매출 (B2C 코인 결제)",
+    "mode": "transaction_trace",
+    "sample_transaction": "사용자 A · 코인 ₩10,000 충전 (2026-04-29 09:23) → 회차 5개 잠금해제",
+    "lanes": [
+      {
+        "id": "FRONT",
+        "label_ko": "📱 Front-end (App)",
+        "sequence_index": 0
+      },
+      {
+        "id": "BACK",
+        "label_ko": "⚙ Back-end / OMS",
+        "sequence_index": 1
+      },
+      {
+        "id": "SETTLE",
+        "label_ko": "🧮 정산 시스템",
+        "sequence_index": 2
+      },
+      {
+        "id": "ACCT",
+        "label_ko": "💰 ERP / GL",
+        "sequence_index": 3
+      }
+    ],
+    "nodes": [
+      {
+        "id": "F1",
+        "lane": "FRONT",
+        "label_ko": "코인 충전 요청",
+        "shape": "process",
+        "cls": "manual",
+        "system": "WebtooNX 모바일 앱",
+        "tables": [
+          "payment_intent"
+        ],
+        "data_action": "INSERT",
+        "key_field": "payment_intent.intent_id",
+        "key_value": "PI-2026-0429-A1547",
+        "evidence_source": "narrative §A.1",
+        "linkage_to_next": {
+          "via_table": "pg_callback",
+          "join_logic": "pg_callback.intent_id = payment_intent.intent_id",
+          "transform_type": "1:1",
+          "breaks_lineage": false,
+          "note": "PG (KCP/토스) 결제 콜백 수신 시 매핑"
+        }
+      },
+      {
+        "id": "F2",
+        "lane": "FRONT",
+        "label_ko": "회차 잠금해제 탭",
+        "shape": "process",
+        "cls": "manual",
+        "system": "WebtooNX 모바일 앱",
+        "tables": [
+          "episode_unlock_request"
+        ],
+        "data_action": "INSERT",
+        "key_field": "episode_unlock_request.req_id",
+        "key_value": "EUR-2026-7762310",
+        "evidence_source": "narrative §A.4"
+      },
+      {
+        "id": "B1",
+        "lane": "BACK",
+        "label_ko": "COOKIE_LEDGER",
+        "shape": "data_store",
+        "cls": "automated",
+        "system": "WebtooNX OMS (PostgreSQL)",
+        "tables": [
+          "cookie_ledger"
+        ],
+        "data_action": "INSERT",
+        "key_field": "cookie_ledger.entry_id",
+        "key_value": "CL-2026-0429-9981",
+        "evidence_source": "vision: sample_sql §1",
+        "linkage_to_next": {
+          "via_table": "pg_recon_daily",
+          "join_logic": "pg_recon_daily.cookie_entry_id = cookie_ledger.entry_id",
+          "transform_type": "N:1",
+          "breaks_lineage": false,
+          "note": "일배치 PG-Ledger 대사로 집계"
+        }
+      },
+      {
+        "id": "B2",
+        "lane": "BACK",
+        "label_ko": "잔액 검증",
+        "shape": "decision",
+        "cls": "control",
+        "system": "WebtooNX OMS",
+        "tables": [
+          "cookie_ledger"
+        ],
+        "data_action": "READ",
+        "key_field": "cookie_ledger.entry_id",
+        "key_value": "CL-2026-0429-9981",
+        "evidence_source": "vision: sample_sql §2"
+      },
+      {
+        "id": "B3",
+        "lane": "BACK",
+        "label_ko": "음수잔액 허용 룰",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "WebtooNX OMS",
+        "tables": [
+          "promo_rule"
+        ],
+        "data_action": "READ",
+        "evidence_source": "vision: sample_promo_config §3 ([추정] 음수잔액 룰)"
+      },
+      {
+        "id": "S1",
+        "lane": "SETTLE",
+        "label_ko": "PG-Ledger 일일 대사",
+        "shape": "process",
+        "cls": "control",
+        "system": "WebtooNX 정산 시스템",
+        "tables": [
+          "pg_recon_daily"
+        ],
+        "data_action": "INSERT",
+        "key_field": "pg_recon_daily.recon_id",
+        "key_value": "REC-2026-0429-D1",
+        "evidence_source": "vision: sample_sql §1",
+        "linkage_to_next": {
+          "via_table": "pg_recon_daily",
+          "join_logic": "ABS(pg_amount - cookie_amount) < 10000 → AUTO_CLEAR",
+          "transform_type": "formula",
+          "breaks_lineage": true,
+          "note": "1만원 미만 차이 자동종결 — 누적 매출 영향 1:1 추적 끊김"
+        }
+      },
+      {
+        "id": "S2",
+        "lane": "SETTLE",
+        "label_ko": "1만원 미만 자동종결",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "WebtooNX 정산 시스템",
+        "tables": [
+          "pg_recon_exception"
+        ],
+        "data_action": "UPDATE",
+        "key_field": "pg_recon_exception.exception_id",
+        "evidence_source": "vision: sample_sql §3 (★ 자동종결 임계값)"
+      },
+      {
+        "id": "S3",
+        "lane": "SETTLE",
+        "label_ko": "월별 정산 리포트",
+        "shape": "document",
+        "cls": "control",
+        "system": "WebtooNX 정산 시스템",
+        "tables": [
+          "settlement_monthly"
+        ],
+        "data_action": "INSERT",
+        "key_field": "settlement_monthly.report_id",
+        "key_value": "SM-2026-04",
+        "evidence_source": "narrative §A.6",
+        "linkage_to_next": {
+          "via_table": "revenue_line",
+          "join_logic": "revenue_line.source_report_id = settlement_monthly.report_id",
+          "transform_type": "1:N",
+          "breaks_lineage": false,
+          "note": "월 리포트 1개 → 일자별 revenue_line 다수"
+        }
+      },
+      {
+        "id": "S4",
+        "lane": "SETTLE",
+        "label_ko": "PROMO_RULE 단독등록",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "WebtooNX 정산 어드민",
+        "tables": [
+          "promo_rule",
+          "promo_rule_hist"
+        ],
+        "data_action": "INSERT",
+        "key_field": "promo_rule.rule_id",
+        "evidence_source": "vision: sample_promo_config §1"
+      },
+      {
+        "id": "A1",
+        "lane": "ACCT",
+        "label_ko": "REVENUE_LINE 일배치 전기",
+        "shape": "process",
+        "cls": "automated",
+        "system": "ERP (자체 GL)",
+        "tables": [
+          "revenue_line"
+        ],
+        "data_action": "INSERT",
+        "key_field": "revenue_line.line_id",
+        "key_value": "RL-2026-0429-3344",
+        "evidence_source": "narrative §A.4",
+        "linkage_to_next": {
+          "via_table": "gl_journal",
+          "join_logic": "gl_journal.source_line_id = revenue_line.line_id",
+          "transform_type": "N:1",
+          "breaks_lineage": true,
+          "note": "일배치 집계로 1 분개 = N revenue_line — 1:1 추적 끊김"
+        }
+      },
+      {
+        "id": "A2",
+        "lane": "ACCT",
+        "label_ko": "월말 cut-off 수기분개",
+        "shape": "manual_step",
+        "cls": "risk",
+        "system": "ERP (자체 GL)",
+        "tables": [
+          "gl_journal"
+        ],
+        "data_action": "INSERT",
+        "key_field": "gl_journal.je_doc_no",
+        "key_value": "JE-2026-04-MNL-019",
+        "evidence_source": "narrative §A.7"
+      }
+    ],
+    "edges": [
+      {
+        "from_id": "F1",
+        "to_id": "B1",
+        "label_ko": "결제 요청"
+      },
+      {
+        "from_id": "B1",
+        "to_id": "S1",
+        "label_ko": "callback"
+      },
+      {
+        "from_id": "F2",
+        "to_id": "B2"
+      },
+      {
+        "from_id": "B2",
+        "to_id": "B3",
+        "condition": "잔액부족"
+      },
+      {
+        "from_id": "B2",
+        "to_id": "A1",
+        "condition": "정상"
+      },
+      {
+        "from_id": "S1",
+        "to_id": "S2"
+      },
+      {
+        "from_id": "S3",
+        "to_id": "A1"
+      },
+      {
+        "from_id": "S4",
+        "to_id": "S3"
+      },
+      {
+        "from_id": "A1",
+        "to_id": "A2"
+      }
+    ],
+    "journal_entry": {
+      "doc_no": "JE-2026-04-MNL-019",
+      "posting_date": "2026-04-30",
+      "system": "ERP (자체 GL)",
+      "tables": [
+        "gl_journal",
+        "gl_journal_line"
+      ],
+      "lines": [
+        {
+          "side": "Dr",
+          "account": "현금/PG미수금",
+          "amount": "₩10,000",
+          "memo": ""
+        },
+        {
+          "side": "Cr",
+          "account": "선수금(이연수익)",
+          "amount": "₩10,000",
+          "memo": "충전 시점"
+        },
+        {
+          "side": "Dr",
+          "account": "선수금",
+          "amount": "₩2,500",
+          "memo": "회차 5개 잠금해제"
+        },
+        {
+          "side": "Cr",
+          "account": "매출",
+          "amount": "₩2,500"
+        }
+      ]
+    },
+    "interview_questions": [
+      {
+        "topic": "주요 테이블 식별",
+        "why_needed": "pg_recon_daily / settlement_monthly 가 ETL 가공인지 원장 직접 적재인지 narrative 만으로는 불명",
+        "questions": [
+          "pg_recon_daily 테이블은 PG_TXN_RAW + cookie_ledger 의 ETL 가공인가요, 아니면 별도 원장으로 직접 적재됩니까?",
+          "settlement_monthly 의 source 테이블과 ETL 주기·책임자는 누구인가요?",
+          "pg_recon_exception 자동종결 건이 추후 reconciliation 어디로 흘러가나요?"
+        ]
+      },
+      {
+        "topic": "키 변환 메커니즘",
+        "why_needed": "회차 잠금해제 (EUR) → revenue_line 변환 logic 미상",
+        "questions": [
+          "episode_unlock_request 에서 revenue_line 으로 변환되는 로직은 어떤 테이블·컬럼을 거치나요?",
+          "프로모션·쿠폰 적용 시 revenue_line.amount 가 어떻게 보정됩니까?"
+        ]
+      },
+      {
+        "topic": "집계·수식 구간 (★ 1:1 끊김 지점)",
+        "why_needed": "자동종결 (S1→S2) 와 일배치 집계 (A1→A2) 가 1:1 추적이 깨지는 구간으로 식별됨",
+        "questions": [
+          "1만원 미만 자동종결 건의 누적 합계를 월별로 어떻게 모니터링하시나요? CFO 사후 보고가 있나요?",
+          "REVENUE_LINE → GL 일배치 집계 시 일자·거래·계정 어느 차원으로 그루핑되나요?",
+          "수기 분개 (A2) 와 자동 분개 (A1) 의 분리·교차 검증 절차는 무엇인가요?"
+        ]
+      },
+      {
+        "topic": "권한·SoD",
+        "why_needed": "PROMO_RULE 단독등록 + 자동종결 임계값 변경 권한이 정산팀 시니어에게 동시 부여되어 있을 가능성",
+        "questions": [
+          "PROMO_RULE 등록 권한과 정산 결과 승인 권한이 동일 사용자에게 부여되어 있나요?",
+          "음수잔액 허용 룰은 누가 활성화 시켰고, 마지막 검토는 언제·누구였나요?",
+          "GRC 룰셋 충돌역할 모니터링 결과 보고서를 보여주실 수 있나요?"
+        ]
+      },
+      {
+        "topic": "IPE 신뢰성",
+        "why_needed": "월별 정산 리포트가 통제의 input 인데, 그 리포트 자체의 정확성 검증 절차가 narrative 에 없음",
+        "questions": [
+          "월별 정산 리포트(settlement_monthly) 의 정확성·완전성을 검증하는 별도 통제가 있습니까?",
+          "리포트 생성 시 사용된 SQL/스크립트의 변경 관리는 어떻게 되나요?"
+        ]
+      }
+    ]
+  },
+  "missing_controls": {
+    "missing_controls": [
+      {
+        "node_id": "F1",
+        "node_label": "코인 충전 요청",
+        "missing_type": "Preventive Automated",
+        "what_should_exist": "결제 요청 시 사용자 OAuth/MFA 인증 검증 통제",
+        "why_needed_ko": "ISO 27001·PCI-DSS 결제 요청 시점 본인확인 필수. 부정 결제 차단의 1차 통제.",
+        "recommended_id": "[NEW] RC-PAY-AUTH-01",
+        "recommended_activity_ko": "결제 intent 생성 시 OAuth 토큰·MFA 결과 검증 후만 PG 호출. 실패 시 차단 + 보안로그 적재.",
+        "expected_frequency": "Per Transaction",
+        "expected_owner": "결제플랫폼팀 + 보안팀",
+        "priority": "High",
+        "rationale_ko": "결제 시점 본인확인은 SOX 일반통제 + 부정결제 차단의 핵심"
+      },
+      {
+        "node_id": "S2",
+        "node_label": "1만원 미만 자동종결",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "자동종결 임계값(₩10,000)의 적정성 분기 재평가 통제",
+        "why_needed_ko": "임계값 미만 자동종결 건이 누적되면 매출 누락 위험. 분기별 재평가가 표준 절차.",
+        "recommended_id": "[NEW] RC-PAY-AUTOCLEAR-REV-01",
+        "recommended_activity_ko": "분기별 재무팀이 누적 자동종결 금액·건수를 분석하여 임계값 적정성 평가 후 CFO 서명",
+        "expected_frequency": "Quarterly",
+        "expected_owner": "재무팀 시니어 + CFO 서명",
+        "priority": "Medium",
+        "rationale_ko": "이미 자동종결 발생 중이므로 사후 모니터링이 즉시 필요"
+      },
+      {
+        "node_id": "B3",
+        "node_label": "음수잔액 허용 룰",
+        "missing_type": "Detective Automated",
+        "what_should_exist": "음수잔액 일배치 청소·매출 보정 통제 (RC-CON-002 가 정의되어 있으나 실제 운영 X)",
+        "why_needed_ko": "프로모션 음수잔액이 마감까지 누적되면 매출 누락 직결. 정의된 통제 즉시 가동 필요.",
+        "recommended_id": "[ACTIVATE] RC-CON-002",
+        "recommended_activity_ko": "일배치가 음수 잔액 계정을 식별·정산하여 REVENUE_LINE 보정. 결과 보고서를 D+1 정산팀 검토.",
+        "expected_frequency": "Daily",
+        "expected_owner": "OMS 운영팀 + 정산팀",
+        "priority": "High",
+        "rationale_ko": "RCM에 정의된 통제 RC-CON-002 가 실제 운영되지 않아 매출 누락 직접 위험"
+      },
+      {
+        "node_id": "S4",
+        "node_label": "PROMO_RULE 단독등록",
+        "missing_type": "Preventive Manual",
+        "what_should_exist": "PROMO_RULE 변경 메이커-체커 2단 통제 (RC-SET-002 정의되어 있으나 미운영)",
+        "why_needed_ko": "프로모션 룰 임의 변경은 매출 직접 왜곡 가능. 메이커-체커는 SOX 표준 절차.",
+        "recommended_id": "[ACTIVATE] RC-SET-002",
+        "recommended_activity_ko": "PROMO_RULE 등록·변경 시 메이커(정산팀)·체커(재무팀) 2단 승인 강제. 변경로그 자동 보존.",
+        "expected_frequency": "Per Change",
+        "expected_owner": "정산팀(메이커) + 재무팀(체커)",
+        "priority": "High",
+        "rationale_ko": "이미 단독등록이 5건 발견되어 즉시 차단 필요"
+      },
+      {
+        "node_id": "A2",
+        "node_label": "월말 cut-off 수기분개",
+        "missing_type": "Detective Manual",
+        "what_should_exist": "수기 분개 CFO 전수 사후 검토·서명 강제 (RC-ACC-001 정의되어 있으나 구두 리뷰만 존재)",
+        "why_needed_ko": "월말 cut-off 수기 분개는 매출 cut-off 조작 위험 1순위. CFO 서명이 SOX 표준.",
+        "recommended_id": "[ENHANCE] RC-ACC-001",
+        "recommended_activity_ko": "매출 관련 manual JE 를 월말 마감 후 CFO 가 전수 검토하고 시스템에 서명·증빙 첨부 강제",
+        "expected_frequency": "Monthly",
+        "expected_owner": "재무팀(기안) → CFO(서명)",
+        "priority": "High",
+        "rationale_ko": "현재 구두 리뷰만 존재 — SOX 감사 시 명백한 결함"
+      }
+    ],
+    "coverage_summary": {
+      "total_nodes": 11,
+      "mapped_nodes": 6,
+      "gap_nodes": 3,
+      "missing_designs": 5,
+      "high_priority": 4,
+      "headline_ko": "총 11개 노드 중 6개 매핑·3개 통제 공백. 산업표준 비교 시 5개 신규 통제 설계 권고 (High 4건). 음수잔액 룰·PROMO_RULE 메이커-체커·수기분개 CFO 검토는 RCM 정의 있으나 실제 미운영 — 즉시 가동 필요."
+    }
   }
 }
