@@ -1413,13 +1413,6 @@ if "mermaid" in st.session_state:
         st.markdown("### 🔍 빠진 통제 — 신규 설계 권고")
         if cov.get("headline_ko"):
             st.caption(cov["headline_ko"])
-        if cov:
-            cov_cols = st.columns(5)
-            cov_cols[0].metric("총 노드", cov.get("total_nodes", "—"))
-            cov_cols[1].metric("매핑됨",  cov.get("mapped_nodes", "—"))
-            cov_cols[2].metric("Gap",     cov.get("gap_nodes", "—"))
-            cov_cols[3].metric("권고",    cov.get("missing_designs", "—"))
-            cov_cols[4].metric("High",    cov.get("high_priority", "—"))
         for m in missing_list:
             prio = (m.get("priority") or "").capitalize() or "Medium"
             prio_cls = {"High": "mc-high", "Medium": "mc-med",

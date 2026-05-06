@@ -574,11 +574,11 @@
     ],
     "coverage_summary": {
       "total_nodes": 11,
-      "mapped_nodes": 6,
+      "mapped_nodes": 5,
       "gap_nodes": 3,
       "missing_designs": 5,
       "high_priority": 4,
-      "headline_ko": "총 11개 노드 중 6개 매핑·3개 통제 공백. 산업표준 비교 시 5개 신규 통제 설계 권고 (High 4건). 음수잔액 룰·PROMO_RULE 메이커-체커·수기분개 CFO 검토는 RCM 정의 있으나 실제 미운영 — 즉시 가동 필요."
+      "headline_ko": "5개 노드는 RCM에 매핑 완료. 산업표준 비교 시 5개 신규 통제 설계가 추가 필요 (High 4건). 음수잔액 룰·PROMO_RULE 메이커-체커·수기분개 CFO 검토는 RCM 정의 있으나 실제 미운영 — 즉시 가동 필요."
     }
   }
 }
