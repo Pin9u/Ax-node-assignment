@@ -969,11 +969,11 @@ if "mermaid" in st.session_state:
         '  <span class="section-toc-label">바로가기</span>'
         '  <a class="toc-chip" href="#sec-flowchart">🗺️ 플로우차트</a>'
         '  <a class="toc-chip" href="#sec-keytrail">🔗 꼬리표</a>'
-        '  <a class="toc-chip" href="#sec-interview">🎤 인터뷰</a>'
-        '  <a class="toc-chip" href="#sec-auditplan">🧮 감사 계획</a>'
         '  <a class="toc-chip" href="#sec-risk">🚨 리스크</a>'
+        '  <a class="toc-chip" href="#sec-auditplan">🧮 감사 계획</a>'
         '  <a class="toc-chip" href="#sec-rcm">🎯 RCM 매핑</a>'
         '  <a class="toc-chip" href="#sec-missing">🔍 통제 공백</a>'
+        '  <a class="toc-chip" href="#sec-interview">🎤 인터뷰</a>'
         '  <a class="toc-chip" href="#sec-download">📥 다운로드</a>'
         '</nav>',
         unsafe_allow_html=True,
@@ -1255,48 +1255,15 @@ if "mermaid" in st.session_state:
                     use_container_width=True,
                 )
 
-    # ===== 인터뷰 추가 질문 (AI가 못 푼 부분 → 담당자 인터뷰 가이드) =====
-    interview_qs = st.session_state.get("interview_qs") or []
-    if interview_qs:
-        st.markdown('<span id="sec-interview" class="toc-anchor"></span>', unsafe_allow_html=True)
-        st.markdown("### 🎤 담당자 인터뷰 추가 질문")
-        st.caption("AI가 narrative·증적만으로 확신할 수 없는 부분을 클라이언트 "
-                   "담당자에게 던질 구체 질문으로 자동 변환했습니다. "
-                   "코어팀 인터뷰 들어갈 때 그대로 사용하세요.")
-        for grp in interview_qs:
-            topic = html.escape(grp.get("topic", ""))
-            why   = html.escape(grp.get("why_needed", ""))
-            qs_html = "".join(
-                f'<li>{html.escape(q)}</li>' for q in grp.get("questions", [])
-            )
-            st.markdown(
-                f'<div class="iq-card">'
-                f'  <div class="iq-topic">🎤 {topic}</div>'
-                f'  <div class="iq-why">{why}</div>'
-                f'  <ol class="iq-list">{qs_html}</ol>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-        # Bundle all questions into one downloadable Markdown sheet —
-        # auditor takes it into the meeting verbatim.
-        iq_md_lines = ["# 클라이언트 담당자 인터뷰 질문지", "",
-                       "AI 자동 생성 — Samil Auto-Flow Auditor", ""]
-        for i, grp in enumerate(interview_qs, start=1):
-            iq_md_lines.append(f"## {i}. {grp.get('topic','')}")
-            if grp.get("why_needed"):
-                iq_md_lines.append(f"> 왜 필요한지: {grp['why_needed']}")
-            iq_md_lines.append("")
-            for j, q in enumerate(grp.get("questions", []), start=1):
-                iq_md_lines.append(f"  {i}.{j}  {q}")
-            iq_md_lines.append("")
-        iq_md = "\n".join(iq_md_lines)
-        st.download_button(
-            label="📥 인터뷰 질문지 다운로드 (.md — Word/Docs에 그대로 붙여넣기)",
-            data=iq_md.encode("utf-8"),
-            file_name=f"interview-questions-{html.escape(scenario_label)[:40].replace(' ','_')}.md",
-            mime="text/markdown",
-            use_container_width=True,
-        )
+    # ===== Risk Alerts (3-axis flow risk) =====
+    st.markdown('<span id="sec-risk" class="toc-anchor"></span>', unsafe_allow_html=True)
+    st.markdown("### 🚨 리스크 진단 (3축)",
+                help="완전성(Completeness) / 업무분장(SoD) / 수동개입(Manual) 세 축으로 "
+                     "AI 가 자동 진단한 결과. 각 카드는 헤드라인·근거·권고 3행 구조.")
+    rc1, rc2, rc3 = st.columns(3)
+    with rc1: _render_risk_card("(A) Completeness", risks.get("completeness"))
+    with rc2: _render_risk_card("(B) Segregation of Duties", risks.get("sod"))
+    with rc3: _render_risk_card("(C) Manual Intervention", risks.get("manual"))
 
     # ===== Audit Plan (Big4 / ISA 315 standard) =====
     st.markdown('<span id="sec-auditplan" class="toc-anchor"></span>', unsafe_allow_html=True)
@@ -1464,174 +1431,78 @@ if "mermaid" in st.session_state:
         unsafe_allow_html=True,
     )
 
-    # ===== Risk Alerts (after the flow) =====
-    st.markdown('<span id="sec-risk" class="toc-anchor"></span>', unsafe_allow_html=True)
-    st.markdown("### 🚨 리스크 진단 (3축)",
-                help="완전성(Completeness) / 업무분장(SoD) / 수동개입(Manual) 세 축으로 "
-                     "AI 가 자동 진단한 결과. 각 카드는 헤드라인·근거·권고 3행 구조.")
-    rc1, rc2, rc3 = st.columns(3)
-    with rc1: _render_risk_card("(A) Completeness", risks.get("completeness"))
-    with rc2: _render_risk_card("(B) Segregation of Duties", risks.get("sod"))
-    with rc3: _render_risk_card("(C) Manual Intervention", risks.get("manual"))
+    # ===== 🎯 RCM 매핑 — 통제 매핑 결과 (full width) =====
+    st.markdown('<span id="sec-rcm" class="toc-anchor"></span>', unsafe_allow_html=True)
+    st.markdown("### 🎯 RCM 매핑",
+                help="흐름의 각 단계에 RCM의 어떤 통제가 매칭되는지. "
+                     "Confidence 高·中·低 + Gap 여부 표시.")
+    # ── RCM 자동 진단 패널 (Real Mode only) ────────────────────
+    rcm_intel = st.session_state.get("rcm_intel") or {}
+    if rcm_intel:
+        cat = rcm_intel.get("category_summary", {})
+        col_map = rcm_intel.get("column_map", {})
+        proc_sug = rcm_intel.get("process_suggestion", {})
+        scope_n = rcm_intel.get("scope_row_count", 0)
+        total_n = rcm_intel.get("total_row_count", 0)
 
-    # ===== Two-column =====
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        st.markdown("### 🧠 로직 분석 결과",
-                    help="업로드한 SQL·설정·매트릭스 캡쳐에서 AI가 추출한 비즈니스 로직과 audit red flags. "
-                         "이미지 자체가 아니라 그 안에 담긴 로직이 핵심입니다.")
-        if findings:
-            st.dataframe(_findings_to_table(findings), use_container_width=True, hide_index=True)
-            for f in findings:
-                title = f["title_ko"] if isinstance(f, dict) else f.title_ko
-                fname = f["filename"] if isinstance(f, dict) else f.filename
-                with st.expander(f"📄 {fname} — {title or 'finding'}"):
-                    if isinstance(f, dict):
-                        st.markdown(f"**비즈니스 요약**: {f.get('business_summary_ko','')}")
-                        if f.get("logic_branches"):
-                            st.dataframe(pd.DataFrame(f["logic_branches"]), use_container_width=True, hide_index=True)
-                        if f.get("audit_red_flags"):
-                            st.markdown("**🚩 Red Flags**")
-                            for rf in f["audit_red_flags"]:
-                                st.markdown(f"- {rf}")
-                    else:
-                        if f.error:
-                            st.error(f.error); continue
-                        st.markdown(f"**비즈니스 요약**: {f.business_summary_ko}")
-                        if f.logic_branches:
-                            st.dataframe(pd.DataFrame(f.logic_branches), use_container_width=True, hide_index=True)
-                        if f.audit_red_flags:
-                            st.markdown("**🚩 Red Flags**")
-                            for rf in f.audit_red_flags:
-                                st.markdown(f"- {rf}")
-        else:
-            st.info("증적 이미지가 업로드되지 않았습니다 (또는 시나리오에 이미지가 없음).")
+        chips: List[str] = []
+        for tag in ("ITAC", "PLC", "IPE", "ITGC", "ENTITY", "OTHER"):
+            if cat.get(tag):
+                cls = "rcm-chip-in" if tag in RELEVANT_FOR_WALKTHROUGH else "rcm-chip-out"
+                chips.append(f'<span class="rcm-chip {cls}">{tag} {cat[tag]}</span>')
+        chips_html = "".join(chips)
 
-    # ===== Audit Procedures (NEW — TOD/TOE recommendations) =====
-    procedures = generate_procedures(
-        (mapping_result or {}).get("mappings", []),
-        rcm_df,
-    )
-    if procedures:
-        st.markdown("### 🧪 추천 감사 절차",
-                    help="Test of Design / Test of Operating Effectiveness. "
-                         "통제 빈도·자동화 수준에 따라 표본·증빙·시점 자동 추천.")
-        st.caption("통제 빈도·자동화 수준에 따라 자동 추천된 표본·증빙·시점입니다. "
-                   "프로젝트별 위험 평가 결과로 조정하세요.")
-        proc_df = pd.DataFrame([
-            {
-                "Control":  p["control_id"],
-                "Step":     p["step"],
-                "Test Type": p["test_type"],
-                "표본":      p["sample_size"],
-                "증빙":      p["evidence"],
-                "시점":      p["timing"],
-                "Priority": p["priority"],
-            }
-            for p in procedures
-        ])
-        st.dataframe(proc_df, use_container_width=True, hide_index=True)
+        cols_in = sum(1 for k, v in col_map.items() if v)
+        cols_total = len(col_map) or 1
 
-    # ===== Report download =====
-    st.markdown('<span id="sec-download" class="toc-anchor"></span>', unsafe_allow_html=True)
-    st.markdown("### 📥 보고서 다운로드")
-    md_report = build_markdown_report(
-        scenario_label=scenario_label,
-        severity=severity,
-        narrative=st.session_state.get("narrative_preview", ""),
-        narrative_was_enriched=st.session_state.get("narrative_was_enriched", False),
-        original_narrative=st.session_state.get("narrative_original", ""),
-        findings=[f if isinstance(f, dict) else f.__dict__ for f in findings],
-        mermaid=mermaid_raw,
-        risks=risks,
-        mapping=mapping_result,
-        rcm_intel=st.session_state.get("rcm_intel"),
-        procedures=procedures,
-        kpis=kpis,
-    )
-    fname = f"samil-walkthrough-{scenario_label[:30].replace(' ', '_').replace('/', '-')}.md"
-    st.download_button(
-        label="📄 Markdown 보고서 다운로드 (.md)",
-        data=md_report.encode("utf-8"),
-        file_name=fname,
-        mime="text/markdown",
-        use_container_width=True,
-    )
-    st.caption("💡 다운로드한 .md 파일을 GitHub·Notion·Obsidian에 붙이면 Mermaid 차트가 "
-               "자동 렌더링되고, Word·Google Docs에 붙여도 표 구조 그대로 유지됩니다.")
+        selected_procs = proc_sug.get("selected_processes") or []
+        proc_chip = (f'<span class="rcm-chip rcm-chip-process">매핑 범위: '
+                      f'{html.escape(", ".join(selected_procs)) or "전체"}</span>')
 
-    with c2:
-        st.markdown('<span id="sec-rcm" class="toc-anchor"></span>', unsafe_allow_html=True)
-        st.markdown("### 🎯 RCM 매핑",
-                    help="흐름의 각 단계에 RCM의 어떤 통제가 매칭되는지. "
-                         "Confidence 高·中·低 + Gap 여부 표시.")
-        # ── RCM 자동 진단 패널 (Real Mode only) ────────────────────
-        rcm_intel = st.session_state.get("rcm_intel") or {}
-        if rcm_intel:
-            cat = rcm_intel.get("category_summary", {})
-            col_map = rcm_intel.get("column_map", {})
-            proc_sug = rcm_intel.get("process_suggestion", {})
-            scope_n = rcm_intel.get("scope_row_count", 0)
-            total_n = rcm_intel.get("total_row_count", 0)
+        st.markdown(
+            f'<div class="rcm-intel-card">'
+            f'  <div class="rcm-intel-row">'
+            f'    <span class="rcm-intel-label">컬럼 매핑</span>'
+            f'    <span class="rcm-intel-val">{cols_in}/{cols_total} 자동 인식</span>'
+            f'  </div>'
+            f'  <div class="rcm-intel-row">'
+            f'    <span class="rcm-intel-label">통제 분류</span>'
+            f'    <span class="rcm-intel-val">{chips_html}</span>'
+            f'  </div>'
+            f'  <div class="rcm-intel-row">'
+            f'    <span class="rcm-intel-label">프로세스 필터</span>'
+            f'    <span class="rcm-intel-val">{proc_chip}'
+            f'      <span class="rcm-intel-meta"> · {scope_n}/{total_n}건 적용</span>'
+            f'    </span>'
+            f'  </div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        with st.expander("🔧 RCM 자동 진단 상세 보기"):
+            if proc_sug.get("rationale_ko"):
+                st.markdown(f"**프로세스 선택 근거**: {proc_sug['rationale_ko']}")
+            if col_map:
+                st.markdown("**컬럼 매핑**")
+                st.dataframe(
+                    pd.DataFrame(
+                        [{"표준 필드": k, "사용자 컬럼": v or "(매핑 없음)"}
+                         for k, v in col_map.items()]
+                    ),
+                    hide_index=True, use_container_width=True,
+                )
+            if rcm_intel.get("unmapped_columns"):
+                st.markdown("**매핑되지 않은 사용자 고유 컬럼**: " +
+                            ", ".join(rcm_intel["unmapped_columns"]))
 
-            chips: List[str] = []
-            for tag in ("ITAC", "PLC", "IPE", "ITGC", "ENTITY", "OTHER"):
-                if cat.get(tag):
-                    cls = "rcm-chip-in" if tag in RELEVANT_FOR_WALKTHROUGH else "rcm-chip-out"
-                    chips.append(f'<span class="rcm-chip {cls}">{tag} {cat[tag]}</span>')
-            chips_html = "".join(chips)
-
-            cols_in = sum(1 for k, v in col_map.items() if v)
-            cols_total = len(col_map) or 1
-
-            selected_procs = proc_sug.get("selected_processes") or []
-            proc_chip = (f'<span class="rcm-chip rcm-chip-process">매핑 범위: '
-                          f'{html.escape(", ".join(selected_procs)) or "전체"}</span>')
-
-            st.markdown(
-                f'<div class="rcm-intel-card">'
-                f'  <div class="rcm-intel-row">'
-                f'    <span class="rcm-intel-label">컬럼 매핑</span>'
-                f'    <span class="rcm-intel-val">{cols_in}/{cols_total} 자동 인식</span>'
-                f'  </div>'
-                f'  <div class="rcm-intel-row">'
-                f'    <span class="rcm-intel-label">통제 분류</span>'
-                f'    <span class="rcm-intel-val">{chips_html}</span>'
-                f'  </div>'
-                f'  <div class="rcm-intel-row">'
-                f'    <span class="rcm-intel-label">프로세스 필터</span>'
-                f'    <span class="rcm-intel-val">{proc_chip}'
-                f'      <span class="rcm-intel-meta"> · {scope_n}/{total_n}건 적용</span>'
-                f'    </span>'
-                f'  </div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-            with st.expander("🔧 RCM 자동 진단 상세 보기"):
-                if proc_sug.get("rationale_ko"):
-                    st.markdown(f"**프로세스 선택 근거**: {proc_sug['rationale_ko']}")
-                if col_map:
-                    st.markdown("**컬럼 매핑**")
-                    st.dataframe(
-                        pd.DataFrame(
-                            [{"표준 필드": k, "사용자 컬럼": v or "(매핑 없음)"}
-                             for k, v in col_map.items()]
-                        ),
-                        hide_index=True, use_container_width=True,
-                    )
-                if rcm_intel.get("unmapped_columns"):
-                    st.markdown("**매핑되지 않은 사용자 고유 컬럼**: " +
-                                ", ".join(rcm_intel["unmapped_columns"]))
-
-        df_map = _mappings_to_table(mapping_result)
-        if not df_map.empty:
-            st.dataframe(df_map, use_container_width=True, hide_index=True)
-            gap = (mapping_result or {}).get("gap_summary_ko")
-            if gap:
-                st.markdown(f'<div class="audit-card"><h4>Control Gap Summary</h4>{gap}</div>',
-                            unsafe_allow_html=True)
-        else:
-            st.info("RCM이 제공되지 않았거나 매칭된 통제가 없습니다.")
+    df_map = _mappings_to_table(mapping_result)
+    if not df_map.empty:
+        st.dataframe(df_map, use_container_width=True, hide_index=True)
+        gap = (mapping_result or {}).get("gap_summary_ko")
+        if gap:
+            st.markdown(f'<div class="audit-card"><h4>Control Gap Summary</h4>{gap}</div>',
+                        unsafe_allow_html=True)
+    else:
+        st.info("RCM이 제공되지 않았거나 매칭된 통제가 없습니다.")
 
     # ===== 🔍 Missing Control Detection — 신규 통제 설계 권고 =====
     mc = st.session_state.get("missing_controls") or {}
@@ -1711,8 +1582,132 @@ if "mermaid" in st.session_state:
                 use_container_width=True,
             )
 
-    # Narrative is shown right under the page header (collapsed) — see above.
-    # We keep the bottom area clean so the page ends on RCM mapping / gap summary.
+    # ===== 🧠 Logic Analysis from evidence images (full width) =====
+    st.markdown("### 🧠 로직 분석 결과",
+                help="업로드한 SQL·설정·매트릭스 캡쳐에서 AI가 추출한 비즈니스 로직과 audit red flags. "
+                     "이미지 자체가 아니라 그 안에 담긴 로직이 핵심입니다.")
+    if findings:
+        st.dataframe(_findings_to_table(findings), use_container_width=True, hide_index=True)
+        for f in findings:
+            title = f["title_ko"] if isinstance(f, dict) else f.title_ko
+            fname = f["filename"] if isinstance(f, dict) else f.filename
+            with st.expander(f"📄 {fname} — {title or 'finding'}"):
+                if isinstance(f, dict):
+                    st.markdown(f"**비즈니스 요약**: {f.get('business_summary_ko','')}")
+                    if f.get("logic_branches"):
+                        st.dataframe(pd.DataFrame(f["logic_branches"]), use_container_width=True, hide_index=True)
+                    if f.get("audit_red_flags"):
+                        st.markdown("**🚩 Red Flags**")
+                        for rf in f["audit_red_flags"]:
+                            st.markdown(f"- {rf}")
+                else:
+                    if f.error:
+                        st.error(f.error); continue
+                    st.markdown(f"**비즈니스 요약**: {f.business_summary_ko}")
+                    if f.logic_branches:
+                        st.dataframe(pd.DataFrame(f.logic_branches), use_container_width=True, hide_index=True)
+                    if f.audit_red_flags:
+                        st.markdown("**🚩 Red Flags**")
+                        for rf in f.audit_red_flags:
+                            st.markdown(f"- {rf}")
+    else:
+        st.info("증적 이미지가 업로드되지 않았습니다 (또는 시나리오에 이미지가 없음).")
+
+    # ===== 🎤 인터뷰 추가 질문 (AI가 못 푼 부분 → 담당자 인터뷰 가이드) =====
+    interview_qs = st.session_state.get("interview_qs") or []
+    if interview_qs:
+        st.markdown('<span id="sec-interview" class="toc-anchor"></span>', unsafe_allow_html=True)
+        st.markdown("### 🎤 담당자 인터뷰 추가 질문")
+        st.caption("AI가 narrative·증적만으로 확신할 수 없는 부분을 클라이언트 "
+                   "담당자에게 던질 구체 질문으로 자동 변환했습니다. "
+                   "코어팀 인터뷰 들어갈 때 그대로 사용하세요.")
+        for grp in interview_qs:
+            topic = html.escape(grp.get("topic", ""))
+            why   = html.escape(grp.get("why_needed", ""))
+            qs_html = "".join(
+                f'<li>{html.escape(q)}</li>' for q in grp.get("questions", [])
+            )
+            st.markdown(
+                f'<div class="iq-card">'
+                f'  <div class="iq-topic">🎤 {topic}</div>'
+                f'  <div class="iq-why">{why}</div>'
+                f'  <ol class="iq-list">{qs_html}</ol>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        # Bundle all questions into one downloadable Markdown sheet —
+        # auditor takes it into the meeting verbatim.
+        iq_md_lines = ["# 클라이언트 담당자 인터뷰 질문지", "",
+                       "AI 자동 생성 — Samil Auto-Flow Auditor", ""]
+        for i, grp in enumerate(interview_qs, start=1):
+            iq_md_lines.append(f"## {i}. {grp.get('topic','')}")
+            if grp.get("why_needed"):
+                iq_md_lines.append(f"> 왜 필요한지: {grp['why_needed']}")
+            iq_md_lines.append("")
+            for j, q in enumerate(grp.get("questions", []), start=1):
+                iq_md_lines.append(f"  {i}.{j}  {q}")
+            iq_md_lines.append("")
+        iq_md = "\n".join(iq_md_lines)
+        st.download_button(
+            label="📥 인터뷰 질문지 다운로드 (.md — Word/Docs에 그대로 붙여넣기)",
+            data=iq_md.encode("utf-8"),
+            file_name=f"interview-questions-{html.escape(scenario_label)[:40].replace(' ','_')}.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
+
+    # ===== 🧪 추천 감사 절차 (TOD/TOE 표) =====
+    procedures = generate_procedures(
+        (mapping_result or {}).get("mappings", []),
+        rcm_df,
+    )
+    if procedures:
+        st.markdown("### 🧪 추천 감사 절차",
+                    help="Test of Design / Test of Operating Effectiveness. "
+                         "통제 빈도·자동화 수준에 따라 표본·증빙·시점 자동 추천.")
+        st.caption("통제 빈도·자동화 수준에 따라 자동 추천된 표본·증빙·시점입니다. "
+                   "프로젝트별 위험 평가 결과로 조정하세요.")
+        proc_df = pd.DataFrame([
+            {
+                "Control":  p["control_id"],
+                "Step":     p["step"],
+                "Test Type": p["test_type"],
+                "표본":      p["sample_size"],
+                "증빙":      p["evidence"],
+                "시점":      p["timing"],
+                "Priority": p["priority"],
+            }
+            for p in procedures
+        ])
+        st.dataframe(proc_df, use_container_width=True, hide_index=True)
+
+    # ===== 📥 보고서 다운로드 (END) =====
+    st.markdown('<span id="sec-download" class="toc-anchor"></span>', unsafe_allow_html=True)
+    st.markdown("### 📥 보고서 다운로드")
+    md_report = build_markdown_report(
+        scenario_label=scenario_label,
+        severity=severity,
+        narrative=st.session_state.get("narrative_preview", ""),
+        narrative_was_enriched=st.session_state.get("narrative_was_enriched", False),
+        original_narrative=st.session_state.get("narrative_original", ""),
+        findings=[f if isinstance(f, dict) else f.__dict__ for f in findings],
+        mermaid=mermaid_raw,
+        risks=risks,
+        mapping=mapping_result,
+        rcm_intel=st.session_state.get("rcm_intel"),
+        procedures=procedures,
+        kpis=kpis,
+    )
+    fname = f"samil-walkthrough-{scenario_label[:30].replace(' ', '_').replace('/', '-')}.md"
+    st.download_button(
+        label="📄 Markdown 보고서 다운로드 (.md)",
+        data=md_report.encode("utf-8"),
+        file_name=fname,
+        mime="text/markdown",
+        use_container_width=True,
+    )
+    st.caption("💡 다운로드한 .md 파일을 GitHub·Notion·Obsidian에 붙이면 Mermaid 차트가 "
+               "자동 렌더링되고, Word·Google Docs에 붙여도 표 구조 그대로 유지됩니다.")
 
 else:
     # Empty state — hero
