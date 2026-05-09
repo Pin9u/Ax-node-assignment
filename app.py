@@ -211,12 +211,23 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
         startOnLoad: false,
         securityLevel: "loose",
         theme: "base",
+        // Compact layout — shrinks node padding and inter-node gap so the
+        // whole swimlane fits on one screen without vertical scroll.
+        flowchart: {{
+          nodeSpacing: 30,
+          rankSpacing: 38,
+          padding: 6,
+          useMaxWidth: true,
+          htmlLabels: true,
+          curve: "basis"
+        }},
         themeVariables: {{
           primaryColor:       "#FFFFFF",
           primaryTextColor:   "#1A1A1A",
           primaryBorderColor: "#1A1A1A",
           lineColor:          "#1A1A1A",
           fontFamily:         "Inter, system-ui, -apple-system, sans-serif",
+          fontSize:           "13px",
           clusterBkg:         "#FAFAFA",
           clusterBorder:      "#DC6B2F"
         }}
@@ -1138,7 +1149,9 @@ if "mermaid" in st.session_state:
     _node_count = max(1, len(nodes_for_tip))
     _lane_count = max(1, len({n.lane for n in nodes_for_tip if n.lane}))
     _rows_per_lane = (_node_count + _lane_count - 1) // _lane_count
-    _mermaid_h = max(420, min(820, 160 + _rows_per_lane * 110))
+    # Tight layout — Mermaid now uses compact nodeSpacing/rankSpacing,
+    # so the iframe needs much less vertical room than before.
+    _mermaid_h = max(360, min(680, 140 + _rows_per_lane * 78))
     render_mermaid(mermaid_to_render, tooltips=tooltips, height=_mermaid_h)
 
     # Plan validation panel (Real Mode — surfaces issues from the planner)
