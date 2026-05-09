@@ -110,10 +110,15 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
         overflow-x: auto;
       }}
       .mermaid {{ display: flex; justify-content: center; }}
-      /* Don't force 100% width — that scales the chart UP and pushes lanes
-         off-screen. Let Mermaid use its natural compact size; only cap so
-         it doesn't overflow on narrow screens. */
-      .mermaid svg {{ max-width: 100% !important; height: auto !important; display: block; }}
+      /* Modest 85% zoom — fits the swimlane comfortably on one screen
+         without making nodes too small to read. Unlike transform:scale,
+         CSS zoom also reflows so the iframe sees the smaller size. */
+      .mermaid svg {{
+        zoom: 0.85;
+        max-width: 100% !important;
+        height: auto !important;
+        display: block;
+      }}
 
       /* Floating audit tooltip */
       .pwc-tip {{
@@ -1145,7 +1150,8 @@ if "mermaid" in st.session_state:
     _node_count = max(1, len(nodes_for_tip))
     _lane_count = max(1, len({n.lane for n in nodes_for_tip if n.lane}))
     _rows_per_lane = (_node_count + _lane_count - 1) // _lane_count
-    _mermaid_h = max(420, min(1000, 130 + _lane_count * 120 + _rows_per_lane * 45))
+    # 0.85 SVG zoom is applied in CSS, so the iframe needs ~15% less room.
+    _mermaid_h = max(380, min(880, 120 + _lane_count * 105 + _rows_per_lane * 40))
     render_mermaid(mermaid_to_render, tooltips=tooltips, height=_mermaid_h)
 
     # Plan validation panel (Real Mode — surfaces issues from the planner)
