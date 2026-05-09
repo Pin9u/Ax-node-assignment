@@ -108,9 +108,10 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
         border-radius: 12px;
         padding: 24px;
         min-height: {height - 40}px;
+        overflow-x: auto;       /* fallback if SVG still overflows */
       }}
-      .mermaid {{ display: flex; justify-content: center; }}
-      .mermaid svg {{ max-width: 100%; height: auto; }}
+      .mermaid {{ display: block; width: 100%; }}
+      .mermaid svg {{ width: 100% !important; max-width: 100% !important; height: auto !important; display: block; }}
 
       /* Floating audit tooltip */
       .pwc-tip {{
@@ -273,6 +274,24 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
 
       async function run() {{
           await mermaid.run({{ querySelector: ".mermaid" }});
+
+          // Force rendered SVG to fit the iframe width — Mermaid bakes
+          // explicit width/height attributes that ignore CSS max-width,
+          // so the chart was clipping on the right edge. We strip those
+          // and let the viewBox handle scaling responsively.
+          document.querySelectorAll(".mermaid svg").forEach(svg => {{
+              if (!svg.getAttribute("viewBox")) {{
+                  const w = svg.getAttribute("width") || svg.getBBox().width;
+                  const h = svg.getAttribute("height") || svg.getBBox().height;
+                  svg.setAttribute("viewBox", `0 0 ${{w}} ${{h}}`);
+              }}
+              svg.removeAttribute("width");
+              svg.removeAttribute("height");
+              svg.style.width      = "100%";
+              svg.style.height     = "auto";
+              svg.style.maxWidth   = "100%";
+              svg.style.display    = "block";
+          }});
 
           // Tag nodes
           document.querySelectorAll("g.node").forEach(g => {{
