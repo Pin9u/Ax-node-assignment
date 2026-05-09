@@ -1318,7 +1318,7 @@ if "mermaid" in st.session_state:
 
     st.markdown(
         '<div class="audit-plan-intro">'
-        '🇰🇷 <b>ISA 315 / Big4 표준</b> 기반 — 회계법인 조서에 그대로 옮겨 쓸 수 있는 '
+        '🇰🇷 <b>ISA 315 / Big4 표준</b> 기반 — 조서에 옮겨 쓸 수 있는 '
         'audit plan 4개 산출물을 자동 생성합니다. '
         f'분석 대상: <b>{html.escape(_audit_plan.process_label_ko)}</b>.'
         '</div>',
