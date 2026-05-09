@@ -106,12 +106,14 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
       .mermaid-host {{
         background: #FFFFFF;
         border-radius: 12px;
-        padding: 24px;
-        min-height: {height - 40}px;
-        overflow-x: auto;       /* fallback if SVG still overflows */
+        padding: 16px;
+        overflow-x: auto;
       }}
-      .mermaid {{ display: block; width: 100%; }}
-      .mermaid svg {{ width: 100% !important; max-width: 100% !important; height: auto !important; display: block; }}
+      .mermaid {{ display: flex; justify-content: center; }}
+      /* Don't force 100% width — that scales the chart UP and pushes lanes
+         off-screen. Let Mermaid use its natural compact size; only cap so
+         it doesn't overflow on narrow screens. */
+      .mermaid svg {{ max-width: 100% !important; height: auto !important; display: block; }}
 
       /* Floating audit tooltip */
       .pwc-tip {{
@@ -286,22 +288,15 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
       async function run() {{
           await mermaid.run({{ querySelector: ".mermaid" }});
 
-          // Force rendered SVG to fit the iframe width — Mermaid bakes
-          // explicit width/height attributes that ignore CSS max-width,
-          // so the chart was clipping on the right edge. We strip those
-          // and let the viewBox handle scaling responsively.
+          // Ensure each SVG has a viewBox (so CSS max-width: 100% can
+          // scale it down on narrow screens) but DON'T force width:100%
+          // — that scales UP and inflates the chart vertically.
           document.querySelectorAll(".mermaid svg").forEach(svg => {{
               if (!svg.getAttribute("viewBox")) {{
                   const w = svg.getAttribute("width") || svg.getBBox().width;
                   const h = svg.getAttribute("height") || svg.getBBox().height;
                   svg.setAttribute("viewBox", `0 0 ${{w}} ${{h}}`);
               }}
-              svg.removeAttribute("width");
-              svg.removeAttribute("height");
-              svg.style.width      = "100%";
-              svg.style.height     = "auto";
-              svg.style.maxWidth   = "100%";
-              svg.style.display    = "block";
           }});
 
           // Tag nodes
@@ -1145,13 +1140,14 @@ if "mermaid" in st.session_state:
     except Exception:
         pass
 
-    # Heuristic height: scale with node count
+    # Heuristic height: scale with lane count (TB swimlane stacks lanes
+    # vertically, so total height ≈ sum of lane heights). Generous so the
+    # chart never gets clipped — user sees full flowchart in one frame
+    # without needing to scroll inside the iframe.
     _node_count = max(1, len(nodes_for_tip))
     _lane_count = max(1, len({n.lane for n in nodes_for_tip if n.lane}))
     _rows_per_lane = (_node_count + _lane_count - 1) // _lane_count
-    # Tight layout — Mermaid now uses compact nodeSpacing/rankSpacing,
-    # so the iframe needs much less vertical room than before.
-    _mermaid_h = max(360, min(680, 140 + _rows_per_lane * 78))
+    _mermaid_h = max(420, min(1100, 120 + _lane_count * 130 + _rows_per_lane * 50))
     render_mermaid(mermaid_to_render, tooltips=tooltips, height=_mermaid_h)
 
     # Plan validation panel (Real Mode — surfaces issues from the planner)
