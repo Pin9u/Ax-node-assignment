@@ -123,12 +123,31 @@ section[data-testid="stSidebar"] hr {
 section[data-testid="stSidebar"] .stTextInput input,
 section[data-testid="stSidebar"] .stTextArea textarea,
 section[data-testid="stSidebar"] [data-baseweb="select"] > div,
-section[data-testid="stSidebar"] [data-baseweb="input"] {
+section[data-testid="stSidebar"] [data-baseweb="input"],
+section[data-testid="stSidebar"] [data-baseweb="input"] > div,
+section[data-testid="stSidebar"] [data-baseweb="base-input"],
+section[data-testid="stSidebar"] [data-baseweb="base-input"] > div {
   background: #1F1F1F !important;
+  background-color: #1F1F1F !important;
   color: #FFFFFF !important;
-  border: 1px solid #333 !important;
+  border-color: #333 !important;
   border-radius: 8px !important;
   font-size: 0.88rem !important;
+}
+/* Catch the literal <input> rendered by streamlit-extras / baseweb */
+section[data-testid="stSidebar"] input[type="text"],
+section[data-testid="stSidebar"] input[type="password"],
+section[data-testid="stSidebar"] input[aria-autocomplete] {
+  background: #1F1F1F !important;
+  background-color: #1F1F1F !important;
+  color: #FFFFFF !important;
+  caret-color: var(--pwc-orange) !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+}
+/* Eye-icon (password reveal) button styling */
+section[data-testid="stSidebar"] [data-baseweb="input"] button {
+  background: transparent !important;
+  color: #BBB !important;
 }
 section[data-testid="stSidebar"] [data-baseweb="select"]:hover > div,
 section[data-testid="stSidebar"] .stTextInput input:focus,
