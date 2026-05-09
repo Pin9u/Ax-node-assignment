@@ -818,10 +818,19 @@ if run:
             st.session_state["key_trail"]    = key_trail_for_ribbon(_plan)
             st.session_state["caat_sql"]     = generate_caat_sql(_plan)
             st.session_state["interview_qs"] = list(_plan.interview_questions)
+            # plan_dict feeds the Big4 audit-plan synthesizer (system/table
+            # signals for complexity, RoMM, etc.) — must populate in both
+            # demo and real mode.
+            try:
+                from dataclasses import asdict
+                st.session_state["plan_dict"] = asdict(_plan)
+            except Exception:
+                st.session_state["plan_dict"] = {}
         else:
             st.session_state["key_trail"]    = []
             st.session_state["caat_sql"]     = ""
             st.session_state["interview_qs"] = []
+            st.session_state["plan_dict"]    = {}
         nodes = parse_nodes(mermaid_code)
         progress.progress(55, text=f"② 차트 생성 완료 — {len(nodes)} 노드")
 
