@@ -288,15 +288,22 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
       async function run() {{
           await mermaid.run({{ querySelector: ".mermaid" }});
 
-          // Ensure each SVG has a viewBox (so CSS max-width: 100% can
-          // scale it down on narrow screens) but DON'T force width:100%
-          // — that scales UP and inflates the chart vertically.
+          // Ensure each SVG has a viewBox, then explicitly downscale to
+          // 70% — the natural Mermaid output is too tall to fit on one
+          // screen for 5-lane swimlanes, and the user wants everything
+          // visible at once. viewBox preserves aspect ratio while
+          // width/height attributes scale the rendered output.
+          const SCALE = 0.7;
           document.querySelectorAll(".mermaid svg").forEach(svg => {{
+              const origW = parseFloat(svg.getAttribute("width"))  || svg.getBBox().width;
+              const origH = parseFloat(svg.getAttribute("height")) || svg.getBBox().height;
               if (!svg.getAttribute("viewBox")) {{
-                  const w = svg.getAttribute("width") || svg.getBBox().width;
-                  const h = svg.getAttribute("height") || svg.getBBox().height;
-                  svg.setAttribute("viewBox", `0 0 ${{w}} ${{h}}`);
+                  svg.setAttribute("viewBox", `0 0 ${{origW}} ${{origH}}`);
               }}
+              svg.setAttribute("width",  Math.round(origW * SCALE));
+              svg.setAttribute("height", Math.round(origH * SCALE));
+              svg.style.maxWidth = "100%";
+              svg.style.height   = "auto";
           }});
 
           // Tag nodes
@@ -1140,14 +1147,13 @@ if "mermaid" in st.session_state:
     except Exception:
         pass
 
-    # Heuristic height: scale with lane count (TB swimlane stacks lanes
-    # vertically, so total height ≈ sum of lane heights). Generous so the
-    # chart never gets clipped — user sees full flowchart in one frame
-    # without needing to scroll inside the iframe.
+    # Heuristic height: scale with lane count, then * ~0.7 since the SVG
+    # itself is now downscaled to 70% via JS post-render. Keeps a small
+    # base so the export-button strip stays visible.
     _node_count = max(1, len(nodes_for_tip))
     _lane_count = max(1, len({n.lane for n in nodes_for_tip if n.lane}))
     _rows_per_lane = (_node_count + _lane_count - 1) // _lane_count
-    _mermaid_h = max(420, min(1100, 120 + _lane_count * 130 + _rows_per_lane * 50))
+    _mermaid_h = max(360, min(820, 110 + _lane_count * 95 + _rows_per_lane * 36))
     render_mermaid(mermaid_to_render, tooltips=tooltips, height=_mermaid_h)
 
     # Plan validation panel (Real Mode — surfaces issues from the planner)
