@@ -514,14 +514,14 @@ def synthesize_audit_plan(
 
     n_sig = sum(1 for r in arisks if r.risk_level == "Significant")
     if n_sig >= 2:
-        strategy = (f"Significant Risk {n_sig}개 어서션 식별 — Controls Reliance + "
-                    "Substantive Test 병행. 통제 의존도 강화 + 어서션별 독립 재계산·"
+        strategy = (f"Significant Risk {n_sig}개 Assertion 식별 — Controls Reliance + "
+                    "Substantive Test 병행. 통제 의존도 강화 + Assertion별 독립 재계산·"
                     "전수 sampling 등 추가 입증감사 절차 가동 권고.")
     elif n_sig == 1:
-        strategy = (f"Significant Risk 1개 어서션 식별 — 해당 어서션 중심 통제 강화 + "
-                    "표적 입증감사. 나머지 어서션은 ISA 315 통상 절차로 충분.")
+        strategy = (f"Significant Risk 1개 Assertion 식별 — 해당 Assertion 중심 통제 강화 + "
+                    "표적 입증감사. 나머지 Assertion은 ISA 315 통상 절차로 충분.")
     else:
-        strategy = ("모든 어서션 Normal Risk — Controls Reliance 위주의 표준 감사 전략. "
+        strategy = ("모든 Assertion Normal Risk — Controls Reliance 위주의 표준 감사 전략. "
                     "RCM 매핑률 유지하고 IPE 정확성·공시 적정성에 집중.")
 
     return AuditPlan(

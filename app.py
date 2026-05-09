@@ -1277,7 +1277,7 @@ if "mermaid" in st.session_state:
     # ===== Audit Plan (Big4 / ISA 315 standard) =====
     st.markdown('<span id="sec-auditplan" class="toc-anchor"></span>', unsafe_allow_html=True)
     st.markdown("### 🧮 감사 계획 (Audit Plan)",
-                help="Big4 표준 audit work paper 구조 — 5축 RoMM · 어서션 분해 · "
+                help="Big4 표준 audit work paper 구조 — 5축 RoMM · Assertion 분해 · "
                      "AURA Setting · Test Procedure × Assertion 매트릭스. "
                      "파트너가 검토하는 audit plan deliverable 형태로 자동 도출.")
 
@@ -1330,7 +1330,7 @@ if "mermaid" in st.session_state:
     # ----- Assertion-level decomposition -----
     st.markdown(
         '<div class="audit-plan-subhead">'
-        '<span>② 어서션 분해 매트릭스</span>'
+        '<span>② Assertion 분해 매트릭스</span>'
         '<span class="badge">E/O · C · A · CO · P&D</span>'
         '</div>',
         unsafe_allow_html=True,
@@ -1338,7 +1338,7 @@ if "mermaid" in st.session_state:
     _ass_html = ['<div class="assertion-matrix">']
     _ass_html.append(
         '<div class="assertion-row head">'
-        '<div class="assertion-cell">어서션</div>'
+        '<div class="assertion-cell">Assertion</div>'
         '<div class="assertion-cell">Nature</div>'
         '<div class="assertion-cell mag">Magnitude</div>'
         '<div class="assertion-cell lik">Likelihood</div>'
