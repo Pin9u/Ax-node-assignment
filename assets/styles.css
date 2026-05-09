@@ -1149,3 +1149,366 @@ html { scroll-behavior: smooth; }
   .hero-card { padding: 22px 20px; }
   .scenario-meta { display: block; margin-left: 0 !important; margin-top: 6px !important; }
 }
+
+/* ============================================================== */
+/* Audit Plan section (5축 RoMM + 어서션 + AURA + 절차 매트릭스)   */
+/* ============================================================== */
+
+.audit-plan-intro {
+  background: var(--pwc-orange-bg);
+  border: 1px solid var(--pwc-orange-soft);
+  border-left: 4px solid var(--pwc-orange);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 0 0 14px 0;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--pwc-text);
+}
+.audit-plan-intro b { color: var(--pwc-orange-deep); }
+
+.audit-plan-subhead {
+  margin: 18px 0 10px 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--pwc-black);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.audit-plan-subhead .badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--pwc-grey-2);
+  color: var(--pwc-grey-5);
+  text-transform: uppercase;
+}
+
+/* ---------- 5-axis RoMM cards ---------- */
+.romm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 0 0 14px 0;
+}
+.romm-card {
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.romm-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--pwc-grey-4);
+}
+.romm-card.lvl-high::before    { background: var(--sev-high); }
+.romm-card.lvl-medium::before  { background: var(--sev-med); }
+.romm-card.lvl-low::before     { background: var(--sev-low); }
+.romm-axis-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.romm-axis-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--pwc-black);
+}
+.romm-axis-en {
+  font-size: 0.7rem;
+  color: var(--pwc-grey-5);
+  font-weight: 500;
+  display: block;
+  margin-top: 1px;
+}
+.romm-level-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.lvl-high  .romm-level-pill { background: rgba(220,38,38,0.10); color: var(--sev-high); }
+.lvl-medium .romm-level-pill { background: rgba(217,119,6,0.10); color: var(--sev-med); }
+.lvl-low   .romm-level-pill { background: rgba(5,150,105,0.10); color: var(--sev-low); }
+.romm-rationale {
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--pwc-grey-5);
+  word-break: keep-all;
+}
+
+/* ---------- Assertion-level matrix ---------- */
+.assertion-matrix {
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0 0 14px 0;
+  box-shadow: var(--shadow-sm);
+}
+.assertion-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 90px 90px 130px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--pwc-grey-3);
+}
+.assertion-row:last-child { border-bottom: 0; }
+.assertion-row.head {
+  background: var(--pwc-grey-2);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--pwc-grey-5);
+  text-transform: uppercase;
+}
+.assertion-cell {
+  padding: 12px 14px;
+  font-size: 0.84rem;
+  display: flex;
+  align-items: center;
+  word-break: keep-all;
+}
+.assertion-cell.assertion-name {
+  font-weight: 700;
+  color: var(--pwc-black);
+  border-right: 1px solid var(--pwc-grey-3);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.assertion-cell.assertion-name .ko-sub {
+  font-size: 0.7rem;
+  color: var(--pwc-grey-5);
+  font-weight: 500;
+}
+.assertion-cell.nature {
+  color: var(--pwc-grey-5);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  border-right: 1px solid var(--pwc-grey-3);
+}
+.assertion-cell.mag, .assertion-cell.lik {
+  justify-content: center;
+  font-weight: 600;
+  border-right: 1px solid var(--pwc-grey-3);
+}
+.assertion-cell.risk {
+  justify-content: center;
+}
+.risk-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.risk-pill.significant {
+  background: var(--sev-high);
+  color: #FFFFFF;
+}
+.risk-pill.normal {
+  background: var(--pwc-grey-2);
+  color: var(--pwc-grey-5);
+  border: 1px solid var(--pwc-grey-3);
+}
+
+/* ---------- AURA Setting summary ---------- */
+.aura-table {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0 0 14px 0;
+  box-shadow: var(--shadow-sm);
+  border-collapse: collapse;
+}
+.aura-table thead th {
+  background: var(--pwc-orange);
+  color: #FFFFFF;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  text-align: left;
+}
+.aura-table tbody td {
+  padding: 12px;
+  font-size: 0.84rem;
+  border-bottom: 1px solid var(--pwc-grey-3);
+  vertical-align: top;
+  word-break: keep-all;
+}
+.aura-table tbody tr:last-child td { border-bottom: 0; }
+.aura-table tbody tr:nth-child(even) td { background: var(--pwc-grey-1); }
+.aura-table .col-risk { color: var(--pwc-text); font-weight: 600; }
+.aura-table .col-assertion { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
+.aura-table .level-cell {
+  font-weight: 700;
+  text-align: center;
+}
+.aura-table .level-cell.High     { color: var(--sev-high); }
+.aura-table .level-cell.Medium   { color: var(--sev-med); }
+.aura-table .level-cell.Moderate { color: var(--sev-med); }
+.aura-table .level-cell.Low      { color: var(--sev-low); }
+.aura-table .level-cell.Significant { color: var(--sev-high); }
+.aura-table .level-cell.Normal   { color: var(--pwc-grey-5); }
+.aura-note {
+  font-size: 0.74rem;
+  color: var(--pwc-grey-5);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* ---------- Test Procedure × Assertion grid ---------- */
+.proc-grid {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0 0 14px 0;
+  box-shadow: var(--shadow-sm);
+  border-collapse: collapse;
+}
+.proc-grid thead th {
+  background: var(--pwc-grey-2);
+  color: var(--pwc-grey-5);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--pwc-grey-3);
+}
+.proc-grid thead th.proc-col,
+.proc-grid thead th.aura-col {
+  text-align: left;
+  padding-left: 14px;
+}
+.proc-grid tbody td {
+  padding: 12px 8px;
+  font-size: 0.83rem;
+  border-bottom: 1px solid var(--pwc-grey-3);
+  text-align: center;
+  vertical-align: middle;
+}
+.proc-grid tbody tr:last-child td { border-bottom: 0; }
+.proc-grid td.proc-cell {
+  text-align: left;
+  padding-left: 14px;
+  word-break: keep-all;
+  line-height: 1.55;
+}
+.proc-grid td.proc-cell .proc-num {
+  display: inline-block;
+  width: 22px; height: 22px;
+  border-radius: 999px;
+  background: var(--pwc-orange);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 0.72rem;
+  line-height: 22px;
+  text-align: center;
+  margin-right: 8px;
+}
+.proc-grid td.proc-cell .proc-detail {
+  display: block;
+  color: var(--pwc-grey-5);
+  font-size: 0.76rem;
+  margin-top: 4px;
+  margin-left: 30px;
+  line-height: 1.55;
+}
+.vcheck {
+  display: inline-block;
+  width: 22px; height: 22px;
+  border-radius: 999px;
+  background: var(--pwc-orange-soft);
+  color: var(--pwc-orange-deep);
+  font-weight: 800;
+  font-size: 0.84rem;
+  line-height: 22px;
+  text-align: center;
+}
+.vcheck.empty { background: transparent; color: var(--pwc-grey-3); }
+.proc-grid td.aura-cell {
+  text-align: left;
+  font-size: 0.74rem;
+  color: var(--pwc-orange-deep);
+  font-style: italic;
+  word-break: keep-all;
+  padding-right: 14px;
+}
+
+/* Strategy banner */
+.audit-strategy-banner {
+  background: linear-gradient(180deg, var(--pwc-orange-bg) 0%, #FFFFFF 100%);
+  border: 1px solid var(--pwc-orange-soft);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 14px 0 0 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--pwc-text);
+  box-shadow: var(--shadow-sm);
+}
+.audit-strategy-banner .strategy-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--pwc-orange-deep);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+/* Mobile — stack assertion grid */
+@media (max-width: 720px) {
+  .assertion-row {
+    grid-template-columns: 90px 1fr 110px;
+  }
+  .assertion-row .assertion-cell.mag,
+  .assertion-row .assertion-cell.lik {
+    display: none;
+  }
+  .assertion-row.head .assertion-cell.mag,
+  .assertion-row.head .assertion-cell.lik {
+    display: none;
+  }
+  .romm-grid { grid-template-columns: 1fr; }
+  .proc-grid thead th:not(.proc-col):not(.aura-col) {
+    font-size: 0.62rem;
+    padding: 8px 4px;
+  }
+  .proc-grid tbody td:not(.proc-cell):not(.aura-cell) {
+    padding: 8px 2px;
+  }
+  .vcheck { width: 18px; height: 18px; line-height: 18px; font-size: 0.74rem; }
+  .aura-table {
+    display: block;
+    overflow-x: auto;
+  }
+  .audit-strategy-banner { padding: 14px 16px; font-size: 0.86rem; }
+}

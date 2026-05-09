@@ -31,6 +31,10 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
+from modules.audit_planning import (
+    ASSERTIONS, ASSERTION_LABEL_KO, ROMM_LABEL_KO, ROMM_LABEL_EN,
+    synthesize_audit_plan,
+)
 from modules.audit_procedures import coverage_kpis, generate_procedures
 from modules.caat_sql_generator import generate_caat_sql, key_trail_for_ribbon
 from modules.critical_path import (
@@ -710,6 +714,7 @@ if run:
         #    otherwise fall back to heuristics so every scenario still shows
         #    the most-actionable parts (missing controls especially). ──
         plan_raw = cache.get("plan")
+        st.session_state["plan_dict"] = plan_raw or {}
         if plan_raw:
             try:
                 from modules.flowchart_planner import plan_from_json
@@ -965,6 +970,7 @@ if "mermaid" in st.session_state:
         '  <a class="toc-chip" href="#sec-flowchart">🗺️ 플로우차트</a>'
         '  <a class="toc-chip" href="#sec-keytrail">🔗 꼬리표</a>'
         '  <a class="toc-chip" href="#sec-interview">🎤 인터뷰</a>'
+        '  <a class="toc-chip" href="#sec-auditplan">🧮 감사 계획</a>'
         '  <a class="toc-chip" href="#sec-risk">🚨 리스크</a>'
         '  <a class="toc-chip" href="#sec-rcm">🎯 RCM 매핑</a>'
         '  <a class="toc-chip" href="#sec-missing">🔍 통제 공백</a>'
@@ -1291,6 +1297,172 @@ if "mermaid" in st.session_state:
             mime="text/markdown",
             use_container_width=True,
         )
+
+    # ===== Audit Plan (Big4 / ISA 315 standard) =====
+    st.markdown('<span id="sec-auditplan" class="toc-anchor"></span>', unsafe_allow_html=True)
+    st.markdown("### 🧮 감사 계획 (Audit Plan)",
+                help="Big4 표준 audit work paper 구조 — 5축 RoMM · 어서션 분해 · "
+                     "AURA Setting · Test Procedure × Assertion 매트릭스. "
+                     "파트너가 검토하는 audit plan deliverable 형태로 자동 도출.")
+
+    _audit_plan = synthesize_audit_plan(
+        process_label_ko=scenario_label or "매출 인식",
+        mappings=(mapping_result or {}).get("mappings", []),
+        risks=risks or {},
+        missing_controls=st.session_state.get("missing_controls"),
+        plan=st.session_state.get("plan_dict") or None,
+        coverage_pct=kpis.get("coverage_pct", 0.0),
+        gap_count=kpis.get("gap_count", 0),
+        narrative_text=st.session_state.get("narrative_preview", ""),
+    )
+
+    st.markdown(
+        '<div class="audit-plan-intro">'
+        '🇰🇷 <b>ISA 315 / Big4 표준</b> 기반 — 회계법인 조서에 그대로 옮겨 쓸 수 있는 '
+        'audit plan 4개 산출물을 자동 생성합니다. '
+        f'분석 대상: <b>{html.escape(_audit_plan.process_label_ko)}</b>.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ----- 5축 RoMM cards -----
+    st.markdown(
+        '<div class="audit-plan-subhead">'
+        '<span>① 5축 RoMM 평가</span>'
+        '<span class="badge">ISA 315 (R)</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    _romm_html = ['<div class="romm-grid">']
+    for ax in _audit_plan.romm_axes:
+        lvl_cls = f"lvl-{ax.level.lower()}"
+        _romm_html.append(
+            f'<div class="romm-card {lvl_cls}">'
+            f'  <div class="romm-axis-row">'
+            f'    <div>'
+            f'      <div class="romm-axis-name">{html.escape(ROMM_LABEL_KO.get(ax.axis, ax.axis))}</div>'
+            f'      <span class="romm-axis-en">{html.escape(ROMM_LABEL_EN.get(ax.axis, ax.axis))}</span>'
+            f'    </div>'
+            f'    <span class="romm-level-pill">{html.escape(ax.level)}</span>'
+            f'  </div>'
+            f'  <div class="romm-rationale">{html.escape(ax.rationale_ko)}</div>'
+            f'</div>'
+        )
+    _romm_html.append('</div>')
+    st.markdown("".join(_romm_html), unsafe_allow_html=True)
+
+    # ----- Assertion-level decomposition -----
+    st.markdown(
+        '<div class="audit-plan-subhead">'
+        '<span>② 어서션 분해 매트릭스</span>'
+        '<span class="badge">E/O · C · A · CO · P&D</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    _ass_html = ['<div class="assertion-matrix">']
+    _ass_html.append(
+        '<div class="assertion-row head">'
+        '<div class="assertion-cell">어서션</div>'
+        '<div class="assertion-cell">Nature</div>'
+        '<div class="assertion-cell mag">Magnitude</div>'
+        '<div class="assertion-cell lik">Likelihood</div>'
+        '<div class="assertion-cell">→ Risk</div>'
+        '</div>'
+    )
+    for ar in _audit_plan.assertion_risks:
+        risk_cls = "significant" if ar.risk_level == "Significant" else "normal"
+        ass_label = ASSERTION_LABEL_KO.get(ar.assertion, ar.assertion)
+        # Split the Korean / English part for stacked label
+        ko_sub = ass_label.split("(")[0].strip() if "(" in ass_label else ""
+        _ass_html.append(
+            f'<div class="assertion-row">'
+            f'  <div class="assertion-cell assertion-name">'
+            f'    <span>{html.escape(ar.assertion)}</span>'
+            f'    <span class="ko-sub">{html.escape(ko_sub)}</span>'
+            f'  </div>'
+            f'  <div class="assertion-cell nature">{html.escape(ar.nature_ko)}</div>'
+            f'  <div class="assertion-cell mag">{html.escape(ar.magnitude_ko)}</div>'
+            f'  <div class="assertion-cell lik">{html.escape(ar.likelihood_ko)}</div>'
+            f'  <div class="assertion-cell risk">'
+            f'    <span class="risk-pill {risk_cls}">{html.escape(ar.risk_level)}</span>'
+            f'  </div>'
+            f'</div>'
+        )
+    _ass_html.append('</div>')
+    st.markdown("".join(_ass_html), unsafe_allow_html=True)
+
+    # ----- AURA Setting summary -----
+    st.markdown(
+        '<div class="audit-plan-subhead">'
+        '<span>③ AURA Setting</span>'
+        '<span class="badge">Reliance + Substantive 계획</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    _aura_html = ['<table class="aura-table">',
+                  '<thead><tr>',
+                  '<th>Risk</th><th>Assertion</th><th>Risk Level</th>',
+                  '<th>Controls Reliance</th><th>Substantive Evidence</th>',
+                  '</tr></thead><tbody>']
+    for row in _audit_plan.aura_setting:
+        _aura_html.append(
+            f'<tr>'
+            f'  <td class="col-risk">'
+            f'    {html.escape(row.risk_label_ko)}'
+            f'    <div class="aura-note">{html.escape(row.note_ko)}</div>'
+            f'  </td>'
+            f'  <td class="col-assertion">{html.escape(row.assertion)}</td>'
+            f'  <td class="level-cell {html.escape(row.risk_level)}">{html.escape(row.risk_level)}</td>'
+            f'  <td class="level-cell {html.escape(row.controls_reliance)}">{html.escape(row.controls_reliance)}</td>'
+            f'  <td class="level-cell {html.escape(row.substantive_evidence)}">{html.escape(row.substantive_evidence)}</td>'
+            f'</tr>'
+        )
+    _aura_html.append('</tbody></table>')
+    st.markdown("".join(_aura_html), unsafe_allow_html=True)
+
+    # ----- Test Procedure × Assertion -----
+    st.markdown(
+        '<div class="audit-plan-subhead">'
+        '<span>④ Test Procedure × Assertion</span>'
+        '<span class="badge">V-mark grid + AURA EGA</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    _proc_html = ['<table class="proc-grid">',
+                  '<thead><tr>',
+                  '<th class="proc-col">Test Procedure</th>']
+    for ass in ASSERTIONS:
+        _proc_html.append(f'<th>{html.escape(ass)}</th>')
+    _proc_html.append('<th class="aura-col">AURA EGA</th></tr></thead><tbody>')
+    for proc in _audit_plan.procedures:
+        _proc_html.append('<tr>')
+        _proc_html.append(
+            f'<td class="proc-cell">'
+            f'  <span class="proc-num">{proc.seq}</span>'
+            f'  <b>{html.escape(proc.procedure_ko)}</b>'
+            f'  <span class="proc-detail">{html.escape(proc.detail_ko)}</span>'
+            f'</td>'
+        )
+        for ass in ASSERTIONS:
+            if ass in proc.assertions:
+                _proc_html.append('<td><span class="vcheck">✓</span></td>')
+            else:
+                _proc_html.append('<td><span class="vcheck empty">·</span></td>')
+        _proc_html.append(
+            f'<td class="aura-cell">→ {html.escape(proc.aura_ega_ref_ko)}</td>'
+        )
+        _proc_html.append('</tr>')
+    _proc_html.append('</tbody></table>')
+    st.markdown("".join(_proc_html), unsafe_allow_html=True)
+
+    # ----- Strategy banner -----
+    st.markdown(
+        '<div class="audit-strategy-banner">'
+        '<span class="strategy-label">⚖ Overall Audit Strategy</span>'
+        f'{html.escape(_audit_plan.overall_strategy_ko)}'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     # ===== Risk Alerts (after the flow) =====
     st.markdown('<span id="sec-risk" class="toc-anchor"></span>', unsafe_allow_html=True)
