@@ -195,11 +195,46 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
         background: #DC6B2F; color: #FFFFFF; border-color: #DC6B2F;
         transform: translateY(-1px);
       }}
+
+      /* Zoom bar — user-controlled chart scale */
+      .zoom-bar {{
+        position: absolute; top: 8px; left: 8px; z-index: 50;
+        display: flex; gap: 4px; align-items: center;
+        background: #FFFFFF;
+        border: 1px solid #E5E5E5;
+        border-radius: 8px;
+        padding: 4px 6px 4px 10px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      }}
+      .zoom-bar .zoom-label {{
+        font-size: 11px; font-weight: 700; color: #4B5563;
+        letter-spacing: 0.04em; text-transform: uppercase;
+        margin-right: 4px;
+      }}
+      .zoom-bar button {{
+        background: transparent; color: #4B5563;
+        border: 1px solid transparent; border-radius: 5px;
+        padding: 4px 9px; font-size: 11.5px; font-weight: 600;
+        cursor: pointer;
+        transition: background 0.12s ease, color 0.12s ease;
+      }}
+      .zoom-bar button:hover {{ background: #F4F4F4; color: #1A1A1A; }}
+      .zoom-bar button.active {{
+        background: #DC6B2F; color: #FFFFFF;
+        border-color: #DC6B2F;
+      }}
     </style>
     <div class="mermaid-host" style="position:relative">
       <div class="pwc-toolbar">
         <button onclick="pwcExport('svg')">📥 SVG</button>
         <button onclick="pwcExport('png')">📷 PNG</button>
+      </div>
+      <div class="zoom-bar" role="toolbar" aria-label="차트 크기 조절">
+        <span class="zoom-label">🔍 크기</span>
+        <button type="button" data-zoom="70">70%</button>
+        <button type="button" data-zoom="85">85%</button>
+        <button type="button" data-zoom="100" class="active">100%</button>
+        <button type="button" data-zoom="115">115%</button>
       </div>
       <pre class="mermaid">{safe}</pre>
     </div>
@@ -285,15 +320,43 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
       async function run() {{
           await mermaid.run({{ querySelector: ".mermaid" }});
 
-          // Let Mermaid render at its natural compact size (nodeSpacing
-          // 30, fontSize 13 already shrunk it). Just make sure viewBox
-          // exists so CSS max-width can scale it down on narrow screens.
+          // Let Mermaid render at its natural compact size; ensure
+          // viewBox so width-based scaling (zoom bar) works without
+          // distorting text.
           document.querySelectorAll(".mermaid svg").forEach(svg => {{
               if (!svg.getAttribute("viewBox")) {{
                   const w = svg.getAttribute("width")  || svg.getBBox().width;
                   const h = svg.getAttribute("height") || svg.getBBox().height;
                   svg.setAttribute("viewBox", `0 0 ${{w}} ${{h}}`);
               }}
+              // Strip the explicit width attr so percentage width works
+              svg.removeAttribute("width");
+              svg.removeAttribute("height");
+          }});
+
+          // ── User-controlled zoom: percentage of natural size, applied
+          //    via SVG width % (preserves text crispness via viewBox).
+          function applyZoom(percent) {{
+              document.querySelectorAll(".mermaid svg").forEach(svg => {{
+                  svg.style.width    = percent + "%";
+                  svg.style.maxWidth = "none";
+                  svg.style.height   = "auto";
+              }});
+              document.querySelectorAll(".zoom-bar button").forEach(b => {{
+                  b.classList.toggle("active", b.dataset.zoom === String(percent));
+              }});
+              try {{ sessionStorage.setItem("samil-mermaid-zoom", percent); }} catch (e) {{}}
+          }}
+          let savedZoom = 100;
+          try {{
+              const v = parseInt(sessionStorage.getItem("samil-mermaid-zoom") || "100", 10);
+              if (v >= 50 && v <= 200) savedZoom = v;
+          }} catch (e) {{}}
+          applyZoom(savedZoom);
+          document.querySelectorAll(".zoom-bar button").forEach(btn => {{
+              btn.addEventListener("click", () => {{
+                  applyZoom(parseInt(btn.dataset.zoom, 10));
+              }});
           }});
 
           // Tag nodes
