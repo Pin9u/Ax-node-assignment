@@ -659,18 +659,25 @@ with st.sidebar:
             key=f"itac_narr_{itac_type_code}_{selected_control_id}",
         )
 
-        st.markdown("### 6) One Sample 증적")
-        itac_evidence_file = st.file_uploader(
-            "샘플 1건 증적 이미지 (선택)",
-            type=["png", "jpg", "jpeg", "webp"], key="itac_evidence",
-        )
+        st.markdown("### 6) 테스트 샘플 (거래 1건)")
+        st.caption("ITAC 표본 = 1 sample → 거래 1건. 그 거래 1건의 흐름을 입증할 "
+                   "여러 증적(시스템 로그·승인 이메일·결과 리포트 캡쳐 등)을 함께 첨부.")
         itac_sample_id = st.text_input(
-            "Sample ID", value=_preset.get("sample_id", "PI-2026-0429-A1547"),
+            "거래 식별번호 (Transaction ID)",
+            value=_preset.get("sample_id", "PI-2026-0429-A1547"),
+            help="예: 결제 intent ID · 주문번호 · 전표번호 등 거래를 유일하게 식별하는 키",
             key=f"itac_sid_{itac_type_code}_{selected_control_id}",
         )
         itac_sample_date = st.text_input(
-            "Sample 일자", value=_preset.get("sample_date", "2026-04-29"),
+            "거래 발생일자",
+            value=_preset.get("sample_date", "2026-04-29"),
             key=f"itac_sdate_{itac_type_code}_{selected_control_id}",
+        )
+        itac_evidence_files = st.file_uploader(
+            "거래 증적 (여러 장 OK) — 시스템 로그·승인 흔적·결과 리포트 등",
+            type=["png", "jpg", "jpeg", "webp", "pdf"],
+            accept_multiple_files=True,
+            key=f"itac_evidence_{itac_type_code}_{selected_control_id}",
         )
 
         st.markdown("### 7) 통제 로직")
@@ -1260,7 +1267,7 @@ if is_itac_tool:
             '  <div class="step"><div class="step-num">2</div>'
             '    <div>회사 <b>RCM</b> 업로드 후 분석할 <b>통제번호</b> 선택.</div></div>'
             '  <div class="step"><div class="step-num">3</div>'
-            '    <div><b>인터뷰 내용 · One Sample 증적 · 통제 로직 · LMD</b> 입력.</div></div>'
+            '    <div><b>인터뷰 · 테스트 샘플(거래 1건) · 통제 로직 · LMD</b> 입력.</div></div>'
             '  <div class="step"><div class="step-num">4</div>'
             '    <div><b>🔧 ITAC 워크페이퍼 생성</b> 클릭 → 3-sheet 엑셀 다운로드.</div></div>'
             '</div>',
@@ -1286,11 +1293,15 @@ if is_itac_tool:
             )
 
         evidence_summary = ""
-        if itac_evidence_file is not None:
+        if itac_evidence_files:
+            parts: List[str] = []
+            for f in itac_evidence_files:
+                kb = len(f.getvalue()) // 1024
+                parts.append(f"{f.name} ({kb} KB)")
             evidence_summary = (
-                f"증적 이미지: {itac_evidence_file.name} "
-                f"({len(itac_evidence_file.getvalue())//1024} KB) — "
-                "Vision 추출 결과 첨부 필요."
+                f"거래 {itac_sample_id} 증적 {len(itac_evidence_files)}건: "
+                + " · ".join(parts)
+                + " — Vision 추출 결과 첨부 필요."
             )
 
         # Build merged LMD text — append a note row per uploaded screenshot
@@ -1361,7 +1372,7 @@ if is_itac_tool:
         # ── Preview tabs ──
         tab1, tab2, tab3, tab4 = st.tabs([
             "📋 Cover · 메타",
-            "1️⃣ Sample Test",
+            "1️⃣ 거래 1건 테스트",
             "2️⃣ 로직 분석",
             "3️⃣ LMD 검증",
         ])
@@ -1376,7 +1387,7 @@ if is_itac_tool:
                 f'    <tr><th>통제 활동</th><td>{html.escape(meta.control_activity_ko)}</td></tr>'
                 f'    <tr><th>프로세스 · 산업</th><td>{html.escape(meta.process_ko)} · {html.escape(meta.industry_ko)}</td></tr>'
                 f'    <tr><th>통제 유형 · 빈도 · 자동화</th><td>{html.escape(meta.control_type)} · {html.escape(meta.frequency)} · {html.escape(meta.automation)}</td></tr>'
-                f'    <tr><th>Sample ID · 일자</th><td>{html.escape(wp.sample_id)} · {html.escape(wp.sample_date)}</td></tr>'
+                f'    <tr><th>거래 식별번호 · 발생일</th><td>{html.escape(wp.sample_id)} · {html.escape(wp.sample_date)}</td></tr>'
                 f'    <tr><th>증적 요약</th><td>{html.escape(wp.evidence_summary_ko)}</td></tr>'
                 f'    <tr><th>감사인 메모</th><td>{html.escape(wp.auditor_note_ko)}</td></tr>'
                 f'    <tr><th>자동생성 시각</th><td>{html.escape(wp.generated_at)}</td></tr>'
