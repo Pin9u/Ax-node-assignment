@@ -334,11 +334,16 @@ def render_mermaid(code: str, *, tooltips: Dict[str, Dict[str, str]] | None = No
               svg.removeAttribute("height");
           }});
 
-          // ── User-controlled zoom: percentage of natural size, applied
-          //    via SVG width % (preserves text crispness via viewBox).
+          // ── User-controlled zoom (relative scale).
+          //    BASE_SCALE = 0.7 means '100% button' renders SVG at 70% of
+          //    Mermaid's natural size — calibrated so 5-lane swimlanes
+          //    fit on one screen by default. Click 115% to enlarge for
+          //    detailed reading, 70% to shrink further for export.
+          const BASE_SCALE = 0.7;
           function applyZoom(percent) {{
+              const actual = (percent * BASE_SCALE).toFixed(1);
               document.querySelectorAll(".mermaid svg").forEach(svg => {{
-                  svg.style.width    = percent + "%";
+                  svg.style.width    = actual + "%";
                   svg.style.maxWidth = "none";
                   svg.style.height   = "auto";
               }});
@@ -1636,7 +1641,7 @@ if "mermaid" in st.session_state:
     _node_count = max(1, len(nodes_for_tip))
     _lane_count = max(1, len({n.lane for n in nodes_for_tip if n.lane}))
     _rows_per_lane = (_node_count + _lane_count - 1) // _lane_count
-    _mermaid_h = max(420, min(1000, 130 + _lane_count * 120 + _rows_per_lane * 45))
+    _mermaid_h = max(340, min(780, 110 + _lane_count * 88 + _rows_per_lane * 32))
     render_mermaid(mermaid_to_render, tooltips=tooltips, height=_mermaid_h)
 
     # Plan validation panel (Real Mode — surfaces issues from the planner)
