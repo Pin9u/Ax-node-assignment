@@ -1,37 +1,112 @@
 # 🧾 Samil Auto-Flow Auditor
 
-**AI-powered IT audit walkthrough generator for the revenue (Order-to-Cash) cycle.**
-Turns *unfriendly* client evidence — interview memos, SQL screenshots, configuration captures — into an auditable swimlane flowchart, RCM-mapped, with three-line risk alerts.
+**Big4 매출 walkthrough · ITAC 자동통제 테스트 워크페이퍼 자동 생성기 (Streamlit + Claude)**
 
-> Built as a Big 4 IT-Audit prototype, powered by **Claude Vision** + **Mermaid.js** in a **Streamlit** dashboard.
+감사인이 (1) 인터뷰 내러티브 (2) 증적 이미지 (3) 클라이언트 RCM 3개만 넣으면, 조서에 바로 옮겨 쓸 수 있는 Big4 표준 산출물을 한 번에 만들어주는 웹 어시스턴트입니다.
+
+> 🚀 Live demo: **https://samil-auto.streamlit.app** (API 키 없이 10개 산업 시나리오 즉시 시연)
 
 ---
 
-## 1. Directory Structure
+## ✨ 두 가지 도구
 
 ```
-Ax-node-assignment/
-├── app.py                          # Streamlit entry point (UI + orchestration)
-├── requirements.txt
-├── .env.example                    # ANTHROPIC_API_KEY, CLAUDE_MODEL
-├── .gitignore
-├── README.md                       # ← you are here
-├── assets/
-│   └── styles.css                  # PwC palette (Black #1A1A1A · Orange #DC6B2F · White)
-├── samples/
-│   └── sample_rcm.csv              # 14 standard revenue-cycle controls
-└── modules/
-    ├── __init__.py
-    ├── prompts.py                  # ★ All system/user prompts (vision, mermaid, RCM, risk)
-    ├── claude_client.py            # Anthropic SDK wrapper w/ ephemeral prompt caching
-    ├── vision_analyzer.py          # [Step 1] OCR + business translation per image
-    ├── flowchart_generator.py      # [Step 2] Mermaid swimlane gen + node parser
-    ├── rcm_mapper.py               # [Step 3] Smart RCM mapping + Mermaid annotation
-    └── risk_detector.py            # [Step 4] 3-line alerts on Completeness / SoD / Manual
+사이드바 최상단 「🎯 도구 선택」
+
+┌─ 🗺️ Walkthrough 분석 ─────────────────────────────────────────┐
+│ 매출 흐름·리스크·통제 매핑을 한 페이지에 자동 생성              │
+│  • Swimlane 플로우차트 (호버 시 통제·리스크 카드)               │
+│  • 거래 꼬리표(키) 추적 — SO# → DEL# → INV# → JE# lineage      │
+│  • CAAT 전수검사 SQL 자동 생성                                 │
+│  • Big4 표준 Audit Plan (5축 RoMM · Assertion · AURA · Procedure)│
+│  • RCM 매핑 · 빠진 통제 신규 설계 권고                          │
+│  • 인터뷰 추가 질문 + 추천 감사 절차 (TOD/TOE)                  │
+│  • Markdown 보고서 일괄 다운로드                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ 🔧 ITAC 자동통제 테스트 ─────────────────────────────────────┐
+│ 자동통제 1건 테스트 워크페이퍼 .xlsx 자동 생성                  │
+│  • 5대 ITAC 유형: Auto / 재계산 / RA·SoD / 인터페이스 / Key Report│
+│  • 입력: 통제번호 · 인터뷰 · 거래 1건 증적 · 통제 로직 · LMD     │
+│  • 출력 (4 sheets):                                            │
+│      0. Cover    — 메타·결론                                   │
+│      1. Sample Test — 유형별 5단계 절차                         │
+│      2. 로직 분석  — IF/CASE 자동 분기 + 🚩 red flag           │
+│      3. LMD 검증  — 최종변경일 추적 + 감사기간 내 변경 자동 식별 │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-## 2. Required Libraries (`requirements.txt`)
+---
 
+## 🎬 Demo Mode (API 키 불필요)
+
+사이드바에서 시나리오 선택만 하면 즉시 결과 — **임원 시연 안정성** 위해 LLM 호출 0건으로 동작.
+
+| # | 시나리오 | 산업 | 핵심 통제 포인트 |
+|---|---|---|---|
+| 01 | 네이버웹툰 (WebtooNX) | 플랫폼 | 쿠키 충전 · PG 정산 · PROMO 룰 |
+| 02 | 현대자동차 | 제조 (EDI/VDA) | 단가 검증 · 출하 매칭 · APL retro 정산 |
+| 03 | 이마트 | 옴니채널 리테일 | POS 일마감 · 쿠폰 검증 · 마켓플레이스 수수료 |
+| 04 | 쿠팡 | E-commerce | 1P/3P 분류 · escrow 멱등 · 셀러 수수료 |
+| 05 | KB국민은행 | 뱅킹 | 일할 발생이자 · 스프레드 한도 · IFRS9 EIR |
+| 06 | 삼성생명 | 보험 (IFRS17) | Coverage Unit · 보험료 대사 · CSM 상각 |
+| 07 | DataOps Cloud | SaaS | PO 배분 · usage meter · 계약변경 분류 |
+| 08 | KT | 통신 | CDR 누락 · 요금제 강제배포 · 번들 SSP |
+| 09 | 대우건설 | EPC 건설 | 원가 입력 · EAC 변경 · VO Catch-up |
+| 10 | 셀트리온 | 제약 (라이선스) | 마일스톤 · Constraint · Royalty 추정 |
+
+---
+
+## 🏗 아키텍처
+
+```
+                       ┌─ Demo Mode ────────────────────────────┐
+                       │  10 industry scenarios (.demo.json)    │
+                       │  — pre-baked plan + risks + mappings   │
+                       └────────────────┬───────────────────────┘
+                                        │ same render path
+사이드바 입력  →  modules/ pipeline  →  ┴  →  Streamlit Dashboard
+                       ┌─ Real Mode ────────────────────────────┐
+                       │  Claude API (sonnet 4.6, prompt cache) │
+                       │  Vision · synth · validate · refine    │
+                       └────────────────────────────────────────┘
+```
+
+### 모듈 구성
+
+| Layer | Module | 역할 |
+|---|---|---|
+| Vision   | `vision_analyzer.py`        | SQL·승인매트릭스 캡쳐 → 비즈니스 로직 JSON |
+| Synth    | `flowchart_planner.py`      | narrative + findings → FlowchartPlan (lanes/nodes/edges/key_trail/JE/interview) |
+| Render   | `flowchart_generator.py`    | FlowchartPlan → 결정론적 Mermaid v10 swimlane |
+| Map      | `rcm_mapper.py`             | Plan node ↔ RCM 통제 매칭 + Confidence + Gap |
+| Risk     | `risk_detector.py`          | 3축(Completeness·SoD·Manual) — 흐름 단위 |
+| Plan     | **`audit_planning.py`**     | **5축 RoMM + Assertion(E/O·C·A·CO·P&D) + AURA Setting + Test Procedure × Assertion** — ISA 315 표준 |
+| Gap      | `missing_control_detector.py` | 빠진 통제 자동 식별 + 우선순위 + 권고 ID |
+| CAAT     | `caat_sql_generator.py`     | 전수검사용 모집단 추출 SQL 자동 생성 |
+| TOD/TOE  | `audit_procedures.py`       | 통제 빈도·자동화 기반 표본·증빙·시점 추천 |
+| ITAC     | **`itac_tester.py`**        | **5대 ITAC 유형별 절차 + 로직 분해 + LMD 검증** |
+| ITAC     | **`itac_exporter.py`**      | **xlsx 4-sheet 워크페이퍼 — PwC 오렌지 브랜드** |
+| Export   | `report_exporter.py`        | Walkthrough → Markdown 조서 |
+
+---
+
+## 🚀 Quick Start
+
+```bash
+git clone <repo>
+cd Ax-node-assignment
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Demo mode (no key needed)
+streamlit run app.py
+
+# Real mode (paste API key in sidebar after launch)
+# export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+`requirements.txt`:
 ```
 streamlit>=1.36.0
 anthropic>=0.39.0
@@ -39,117 +114,31 @@ pandas>=2.2.0
 openpyxl>=3.1.2
 Pillow>=10.3.0
 python-dotenv>=1.0.1
-streamlit-mermaid>=0.2.0
 ```
 
-## 3. Quick Start
+---
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # then paste your sk-ant-… key
-streamlit run app.py
-```
+## 🎯 차별점 — 왜 이 도구인가
 
-Then in the sidebar:
+1. **실제 조서 구조를 그대로 매핑.** Big4 매출 audit work paper의 핵심 산출물 — `<1>` 매출 구성 · `<2>` Risk Assessment · `<3>` AURA Setting · `<4>` Test Procedure — 를 그대로 자동 도출하도록 설계. 세니어가 받아 바로 조서에 붙여 쓸 수 있는 형태.
 
-1. paste interview narrative,
-2. upload SQL / config screenshots,
-3. attach an RCM (or check **샘플 RCM 사용**),
-4. press **🚀 Auto-Flow 분석 실행**.
+2. **AI가 그림을 잘못 그릴 위험을 차단.** "AI는 JSON 데이터만 만들고, 그림은 Python이 그린다"는 2-stage 구조 — 차트 깨짐·노드 끊김 사고 0건. 2-shot self-improve validation loop로 정합성 보장.
+
+3. **결정론적 휴리스틱 layer.** RoMM/Assertion/AURA/ITAC 절차는 LLM이 아닌 결정론적 코드로 처리 — 같은 입력에 같은 결과(감사 evidence 요건) + 시연 시 API 비용 0건.
+
+4. **임원 시연 안정성.** Demo Mode는 LLM 호출이 단 한 건도 없어 인터넷 끊김·API 한도 초과 상황에서도 정상 동작.
 
 ---
 
-## 4. The Four-Stage Pipeline
-
-| # | Stage | Module | Output |
-|---|---|---|---|
-| 1 | Vision Logic Extraction | `vision_analyzer.py` | Per-image JSON: `artifact_type`, `business_summary_ko`, `logic_branches`, `audit_red_flags`, three risk signals |
-| 2 | Dynamic Swimlane Flowchart | `flowchart_generator.py` | A Mermaid v10 `flowchart TB` with one `subgraph` per actor, node classes (`automated` / `manual` / `risk` / `control`) |
-| 3 | Smart RCM Mapping | `rcm_mapper.py` | Best-match control per node + confidence + explicit GAP flags + tooltip annotations |
-| 4 | Risk Alert System | `risk_detector.py` | Three 3-line alerts: Completeness · SoD · Manual Intervention + overall severity |
-
-All four stages share the same Anthropic-SDK wrapper, which sends the long static
-system prompts with `cache_control={"type": "ephemeral"}` so subsequent calls
-within a session hit prompt cache.
-
----
-
-## 5. Innovation Statement (English)
-
-**Why this prototype matters.**
-Big 4 IT auditors spend most of a walkthrough turning unfriendly artefacts —
-half-legible SQL screenshots, ERP configuration screens, and rambling interview
-notes — into a swimlane that an audit committee can read. Today this is
-manual, slow, and dependent on the senior in the room. *Samil Auto-Flow
-Auditor* compresses the entire walkthrough-to-RCM-tagging loop into a single
-four-stage pipeline:
-
-1. **Vision-as-evidence.** Claude's vision model is reframed from a
-   general OCR engine into a *Big-4 control-aware reader*. Every screenshot
-   is forced into a strict JSON schema with three explicit risk flags
-   (Completeness · SoD · Manual override) and verbatim quotation rules
-   that prevent hallucination.
-2. **Narrative-fused flowcharting.** Rather than auto-drawing from logic
-   alone, the Mermaid generator fuses the interview narrative with vision
-   findings to produce a swimlane where every logic branch becomes a
-   decision diamond and every cross-team handoff becomes a cross-lane edge.
-   A four-class `classDef` palette (`automated`, `manual`, `risk`, `control`)
-   makes weakness *visible at a glance*.
-3. **Smart RCM mapping with explicit gap detection.** Instead of forcing
-   every step to a control, the mapper is allowed — and required — to return
-   `null`, surfacing control gaps as first-class findings.
-4. **Three-axis risk alerts.** Risks are not a single paragraph; they are
-   structured into the three axes auditors actually report on, each with a
-   strict 3-line format (title · evidence quote · recommended procedure).
-
-The result: a junior auditor obtains, in 30 seconds, the same artefact a
-manager would otherwise hand-draft over half a day — and the artefact is
-*defensible*, because every node ties back to a quoted piece of evidence.
-
----
-
-## 6. 기술서 — 혁신성 요약 (한글)
-
-**문제의식.** Big 4 감사 현장에서 IT 감사인은 walkthrough 시간의 대부분을
-"불친절한 증적"을 정리하는 데 쓴다. 절반만 읽히는 SQL 캡쳐, ERP 설정 화면,
-산만한 인터뷰 메모를 하나하나 풀어내 감사위원회가 읽을 수 있는 swimlane
-플로우차트로 다시 그리는 작업이다. 이 과정은 수작업이며, 인하우스 시니어의
-경험에 전적으로 의존한다.
-
-**Samil Auto-Flow Auditor의 차별점.** 본 프로토타입은 위 작업 전체를 4단계
-파이프라인으로 압축한다.
-
-1. **증적으로서의 Vision.** Claude Vision을 단순 OCR이 아닌, *Big 4 통제
-   감각을 학습한 1차 분석가*로 재정의했다. 모든 캡쳐본은 엄격한 JSON 스키마로
-   강제 출력되며, 세 개의 명시적 리스크 신호(Completeness · SoD · Manual)와
-   "축어 인용 규칙"이 적용되어 환각을 구조적으로 차단한다.
-2. **내러티브-융합 플로우차팅.** Mermaid 생성기는 로직만으로 그리지 않고,
-   인터뷰 내러티브와 Vision 결과를 결합한다. 모든 로직 분기는 결정 다이아몬드,
-   부서간 인계는 cross-lane 엣지로 변환되며, 4-class 팔레트
-   (`automated` / `manual` / `risk` / `control`)로 약점이 *한눈에* 드러난다.
-3. **공백을 드러내는 스마트 RCM 매핑.** 모든 노드를 억지로 통제에 끼워 맞추는
-   대신, 매핑 모델은 `null` 반환을 허용·요구한다. 그 결과 통제 공백(Control
-   Gap)이 1급 발견사항으로 격상된다.
-4. **3축 리스크 경보.** 리스크는 한 문단의 산문이 아니라, 감사인이 실제로
-   리포팅하는 3축(완전성·업무분장·수동 개입)으로 분리되며, 각 항목은
-   "제목 · 근거 인용 · 추가 절차" 3-line 포맷을 강제한다.
-
-**감사 임팩트.** 매니저가 반나절 손으로 그릴 산출물을 주니어가 30초 만에
-얻고, 모든 노드가 인용된 증적으로 역추적되므로 산출물이 *방어 가능*하다.
-즉, 본 도구는 "AI 자동화"가 아니라 **AI-augmented audit defensibility**를
-지향한다.
-
----
-
-## 7. PwC Brand Compliance
+## 🎨 PwC Brand
 
 | Token | Hex | Usage |
 |---|---|---|
-| Black   | `#1A1A1A` | Sidebar, primary text, automated nodes |
-| Orange  | `#DC6B2F` | CTA button, risk borders, header underline |
-| White   | `#FFFFFF` | App background, manual-step nodes |
-| Soft Orange | `#FFE0CC` / `#FFF3EB` | Control · risk fills |
+| Black       | `#1A1A1A` | Sidebar, primary text, automated 노드 |
+| Orange      | `#DC6B2F` | CTA, accent, control 노드 outline |
+| Orange-deep | `#B85822` | Hover state, AURA 테이블 헤더 |
+| Orange-soft | `#FFE7D5` | Card 배경, Summary banner |
+| Red (Sev)   | `#DC2626` | High Severity, Significant Risk pill |
+| Grey-2/3    | `#F4F4F4 / #E5E5E5` | 카드 배경/테두리 |
 
-Defined once in `assets/styles.css` and reused in the Mermaid `themeVariables`
-+ `classDef` blocks so the chart, the cards, and the chrome stay consistent.
+`assets/styles.css`에 1회 정의 → Mermaid `themeVariables` + dashboard CSS + xlsx 셀 스타일 (`itac_exporter.py`) 모두 동일 토큰 재사용.

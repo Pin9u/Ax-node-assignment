@@ -1814,16 +1814,8 @@ if "mermaid" in st.session_state:
                      "AURA Setting · Test Procedure × Assertion 매트릭스. "
                      "파트너가 검토하는 audit plan deliverable 형태로 자동 도출.")
 
-    _audit_plan = synthesize_audit_plan(
-        process_label_ko=scenario_label or "매출 인식",
-        mappings=(mapping_result or {}).get("mappings", []),
-        risks=risks or {},
-        missing_controls=st.session_state.get("missing_controls"),
-        plan=st.session_state.get("plan_dict") or None,
-        coverage_pct=kpis.get("coverage_pct", 0.0),
-        gap_count=kpis.get("gap_count", 0),
-        narrative_text=st.session_state.get("narrative_preview", ""),
-    )
+    # _audit_plan was already synthesized once above for the Summary card;
+    # reuse the same object here so we don't double the work.
 
     st.markdown(
         '<div class="audit-plan-intro">'
