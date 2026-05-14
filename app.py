@@ -1464,8 +1464,8 @@ if "mermaid" in st.session_state:
     st.markdown(
         f'<div class="partner-summary">'
         f'  <div class="ps-header">'
-        f'    <span class="ps-label">📊 Partner At-a-Glance</span>'
-        f'    <span class="ps-tag">조서 1페이지 요약</span>'
+        f'    <span class="ps-label">📊 Summary</span>'
+        f'    <span class="ps-tag">한눈에 보기</span>'
         f'  </div>'
         f'  <div class="ps-grid">'
         f'    <div class="ps-cell ps-cell-stats">'
