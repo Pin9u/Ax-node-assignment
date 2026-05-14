@@ -1531,3 +1531,92 @@ html { scroll-behavior: smooth; }
   }
   .audit-strategy-banner { padding: 14px 16px; font-size: 0.86rem; }
 }
+
+/* ====================================================== */
+/* ITAC Tester page                                       */
+/* ====================================================== */
+.itac-page-header {
+  border-bottom: 3px solid var(--pwc-orange);
+}
+.itac-hero {
+  border-left: 4px solid var(--pwc-orange);
+}
+
+.itac-result-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: linear-gradient(180deg, var(--pwc-orange-bg) 0%, #FFFFFF 100%);
+  border: 1px solid var(--pwc-orange-soft);
+  border-left: 4px solid var(--pwc-orange);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 0 0 14px 0;
+  box-shadow: var(--shadow-sm);
+}
+.itac-banner-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pwc-orange-deep);
+  margin-bottom: 6px;
+}
+.itac-banner-conclusion { display: inline-block; }
+.itac-banner-meta {
+  font-size: 0.84rem;
+  color: var(--pwc-grey-5);
+  text-align: right;
+  word-break: keep-all;
+}
+.itac-banner-meta b { color: var(--pwc-black); }
+
+.itac-card {
+  background: #FFFFFF;
+  border: 1px solid var(--pwc-grey-3);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin: 0 0 14px 0;
+  box-shadow: var(--shadow-sm);
+}
+.itac-card h4 {
+  margin: 0 0 12px 0 !important;
+  font-size: 0.95rem;
+  color: var(--pwc-orange-deep);
+  letter-spacing: -0.01em;
+}
+.itac-meta-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.itac-meta-table th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--pwc-grey-2);
+  color: var(--pwc-grey-5);
+  font-weight: 600;
+  width: 200px;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: top;
+  border-bottom: 1px solid var(--pwc-grey-3);
+}
+.itac-meta-table td {
+  padding: 10px 12px;
+  color: var(--pwc-text);
+  vertical-align: top;
+  word-break: keep-all;
+  border-bottom: 1px solid var(--pwc-grey-3);
+}
+.itac-meta-table tr:last-child th,
+.itac-meta-table tr:last-child td { border-bottom: 0; }
+
+@media (max-width: 720px) {
+  .itac-result-banner { flex-direction: column; align-items: flex-start; }
+  .itac-banner-meta { text-align: left; }
+  .itac-meta-table th { width: 110px; font-size: 0.7rem; }
+}

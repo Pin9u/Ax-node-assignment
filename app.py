@@ -531,6 +531,16 @@ with st.sidebar:
     st.markdown("## 🧾 Samil Auto-Flow")
     st.caption("AI-powered IT audit walkthrough")
 
+    tool = st.radio(
+        "🎯 도구 선택",
+        ["🗺️ Walkthrough 분석", "🔧 ITAC 자동통제 테스트"],
+        index=0,
+        help="Walkthrough = 매출 흐름·리스크·통제 매핑 자동화. "
+             "ITAC Tester = 자동통제 1건 테스트 워크페이퍼 .xlsx 생성.",
+    )
+    is_itac_tool = tool.startswith("🔧")
+    st.divider()
+
     mode = st.radio(
         "실행 모드",
         ["🎬 Demo Mode (API 키 불필요)", "🔌 Real Mode (Claude API 호출)"],
@@ -540,7 +550,171 @@ with st.sidebar:
     )
     is_demo = mode.startswith("🎬")
 
-    if is_demo:
+    if is_itac_tool:
+        # ─────────── ITAC sidebar (separate input set) ───────────
+        from modules.itac_tester import ITAC_LABEL_KO
+        st.markdown("### 1) 통제 유형 선택")
+        itac_type_label = st.selectbox(
+            "ITAC 유형",
+            options=list(ITAC_LABEL_KO.values()),
+            index=0,
+            help="자동통제 5대 유형 — 선택한 유형별로 절차 템플릿이 달라집니다.",
+        )
+        # Reverse lookup
+        itac_type_code = next((k for k, v in ITAC_LABEL_KO.items()
+                               if v == itac_type_label), "AUTO")
+
+        if is_demo:
+            st.markdown("### 2) 데모 통제 선택")
+            st.caption("API 키 없이 사전 베이크된 샘플 워크페이퍼를 즉시 생성합니다.")
+            api_key = ""
+            model = "(demo cache)"
+        else:
+            api_key = st.text_input(
+                "Claude API Key (선택 — 현재 휴리스틱 모드)",
+                type="password",
+                value=os.getenv("ANTHROPIC_API_KEY", ""),
+                help="ITAC 워크페이퍼는 결정론적 휴리스틱으로 생성되어 API 키 없이도 동작.",
+            )
+            model = "claude-sonnet-4-6"
+
+        st.markdown("### 3) RCM 업로드")
+        itac_rcm_file = st.file_uploader(
+            "회사 RCM (CSV/Excel)", type=["csv", "xlsx"], key="itac_rcm",
+        )
+        itac_use_sample = st.checkbox("샘플 RCM 사용", value=not bool(itac_rcm_file),
+                                       key="itac_use_sample")
+
+        # Determine control_id options
+        itac_rcm_df = None
+        try:
+            if itac_rcm_file is not None:
+                itac_rcm_df = load_rcm(itac_rcm_file)
+            elif itac_use_sample:
+                _p = Path(__file__).parent / "samples" / "sample_rcm.csv"
+                if _p.exists():
+                    itac_rcm_df = pd.read_csv(_p)
+        except Exception as _ex:
+            st.warning(f"RCM 로드 실패 — 샘플 사용: {_ex}")
+            _p = Path(__file__).parent / "samples" / "sample_rcm.csv"
+            if _p.exists():
+                itac_rcm_df = pd.read_csv(_p)
+
+        st.markdown("### 4) 통제번호 선택")
+        if itac_rcm_df is not None and "control_id" in itac_rcm_df.columns:
+            control_ids = itac_rcm_df["control_id"].astype(str).tolist()
+            default_idx = control_ids.index("RC-PAY-001") if "RC-PAY-001" in control_ids else 0
+            selected_control_id = st.selectbox(
+                "Control ID", options=control_ids, index=default_idx,
+            )
+        else:
+            selected_control_id = st.text_input(
+                "Control ID (RCM 미업로드 — 수기 입력)",
+                value="RC-PAY-001",
+            )
+
+        # Demo presets — populated when is_demo so partners see realistic
+        # working example without typing. Keyed by (itac_type_code, control_id).
+        _itac_demo_presets = {
+            ("AUTO", "RC-PAY-001"): dict(
+                narrative=("쿠키 충전 시 OMS가 상품마스터(product_master)를 자동 검증하고, "
+                           "외부 PG(KCP/토스) 콜백 수신 시 idempotency 키 기반으로 중복 인식을 차단함. "
+                           "잔액 부족 시 시스템이 거래 자체를 BLOCK 처리."),
+                logic=("IF product_id IN product_master THEN allow ELSE block\n"
+                       "IF amount > 0 AND currency = KRW THEN proceed ELSE block\n"
+                       "IF idempotency_key EXISTS in payment_log THEN skip\n"
+                       "IF user has override_flag THEN bypass validation"),
+                lmd=("VW_PAY_VALIDATE | SQL View | 2024-11-22 | dba | 정기 패치\n"
+                     "SP_CHECK_PRODUCT | Stored Proc | 2025-08-15 | 김ㅁㅁ | 신상품 마스터 추가\n"
+                     "CONFIG_PAY_RULE | Config Table | 2025-02-01 | system | 매개변수 조정"),
+                sample_id="PI-2026-0429-A1547",
+                sample_date="2026-04-29",
+            ),
+            ("RECALC", "RC-BNK-001"): dict(
+                narrative=("EOD 배치가 일할 발생이자(daily accrual)를 자동 계산. "
+                           "EOD_EXCEPTION이 임계값 초과 시 자동흡수되며, 월별 보고."),
+                logic=("daily_accrual = principal × eff_interest_rate × days / 365\n"
+                       "IF abs(diff) < threshold THEN auto_absorb\n"
+                       "IF month_end THEN materialize_to_gl"),
+                lmd=("VW_DAILY_ACCRUAL | SQL View | 2024-09-01 | dba | 신상품 추가\n"
+                     "FN_CALC_INTEREST | Function | 2025-04-12 | 박ㅁㅁ | 산식 변경 (정식 승인)\n"
+                     "PARAM_THRESHOLD | Config | 2024-12-10 | system | 임계값 조정"),
+                sample_id="ACC-2026-Q1-001",
+                sample_date="2026-03-31",
+            ),
+        }
+        _preset = _itac_demo_presets.get((itac_type_code, selected_control_id), {}) if is_demo else {}
+
+        st.markdown("### 5) 인터뷰 내용")
+        itac_narrative = st.text_area(
+            "통제 운영 인터뷰 메모",
+            height=120,
+            value=_preset.get("narrative", ""),
+            placeholder="예) 결제 요청 시 OMS 가 상품마스터를 자동 검증. 외부 PG 콜백 수신 시 idempotent 처리.",
+            key=f"itac_narr_{itac_type_code}_{selected_control_id}",
+        )
+
+        st.markdown("### 6) One Sample 증적")
+        itac_evidence_file = st.file_uploader(
+            "샘플 1건 증적 이미지 (선택)",
+            type=["png", "jpg", "jpeg", "webp"], key="itac_evidence",
+        )
+        itac_sample_id = st.text_input(
+            "Sample ID", value=_preset.get("sample_id", "PI-2026-0429-A1547"),
+            key=f"itac_sid_{itac_type_code}_{selected_control_id}",
+        )
+        itac_sample_date = st.text_input(
+            "Sample 일자", value=_preset.get("sample_date", "2026-04-29"),
+            key=f"itac_sdate_{itac_type_code}_{selected_control_id}",
+        )
+
+        st.markdown("### 7) 통제 로직")
+        itac_logic = st.text_area(
+            "통제 로직 (SQL · pseudocode · 자유 형식)",
+            height=120,
+            value=_preset.get("logic", ""),
+            placeholder=("예)\n"
+                         "IF product_id IN product_master THEN allow ELSE block\n"
+                         "IF amount > 0 AND currency = KRW THEN proceed\n"
+                         "IF user has override_flag THEN bypass validation"),
+            key=f"itac_logic_{itac_type_code}_{selected_control_id}",
+        )
+
+        st.markdown("### 8) LMD (최종변경일)")
+        itac_lmd = st.text_area(
+            "통제 객체 최종변경일 — `객체명 | 유형 | YYYY-MM-DD | 변경자 | 사유`",
+            height=120,
+            value=_preset.get("lmd", ""),
+            placeholder=("VW_PAY_VALIDATE | SQL View | 2024-11-22 | dba | 정기 패치\n"
+                         "SP_CHECK_PRODUCT | Stored Proc | 2025-08-15 | 김ㅁㅁ | 신상품 추가"),
+            key=f"itac_lmd_{itac_type_code}_{selected_control_id}",
+        )
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            itac_period_start = st.text_input("감사기간 시작", value="2025-01-01")
+        with col_b:
+            itac_period_end = st.text_input("감사기간 종료", value="2025-12-31")
+
+        st.markdown("---")
+        itac_run = st.button(
+            "🔧 ITAC 워크페이퍼 생성",
+            use_container_width=True,
+            type="primary",
+        )
+        # Walkthrough vars set to neutral defaults so downstream code doesn't break
+        scenario_label = ""
+        process_for_pipeline = ""
+        chart_mode = "transaction_trace"
+        reference_sample = ""
+        narrative = ""
+        image_files = []
+        rcm_file = None
+        use_sample_rcm = False
+        process_custom = ""
+        run = False
+
+    elif is_demo:
         st.markdown("### 시나리오 선택")
         scenario_label = st.selectbox(
             "산업 시나리오",
@@ -1033,6 +1207,196 @@ if run:
 # ~200 px Streamlit block wrapper on mobile, which would otherwise
 # push the dashboard header off-screen.
 _should_scroll_to_top = bool(st.session_state.pop("_scroll_to_top", False))
+
+
+# ---------------------------------------------------------------------------
+# 🔧 ITAC TOOL — separate page render (sidebar selector → branch here)
+# ---------------------------------------------------------------------------
+if is_itac_tool:
+    from modules.itac_tester import (
+        synthesize_itac_workpaper, control_meta_from_rcm_row,
+        ITAC_LABEL_KO, ITAC_LABEL_SHORT_KO,
+    )
+    from modules.itac_exporter import export_itac_workpaper, suggested_filename
+
+    # Page banner — visually distinct from Walkthrough
+    st.markdown(
+        '<div class="page-header itac-page-header">'
+        '  <div class="page-header-left">'
+        '    <h2 class="page-title">🔧 ITAC 자동통제 테스트 어시스턴트</h2>'
+        '    <div class="page-subtitle">자동통제 1건 테스트 워크페이퍼 자동 생성 — '
+        f'    {html.escape(ITAC_LABEL_KO.get(itac_type_code, ""))}</div>'
+        '  </div>'
+        f'  <span class="severity-pill sev-Medium">{html.escape(ITAC_LABEL_SHORT_KO.get(itac_type_code, ""))}</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    if not itac_run:
+        # Welcome / instructions card
+        st.markdown(
+            '<div class="hero-card itac-hero">'
+            '  <h2>🔧 ITAC 워크페이퍼 자동 생성</h2>'
+            '  <p style="color:var(--pwc-grey-5);margin:6px 0 14px 0;">'
+            '    자동통제 5대 유형(Auto · 재계산 · RA·SoD · 인터페이스 · 키리포트)별 '
+            '    표준 테스트 절차·로직 분석·LMD 검증을 한 번에 생성합니다.'
+            '  </p>'
+            '  <div class="step"><div class="step-num">1</div>'
+            '    <div>좌측 사이드바에서 <b>통제 유형</b> 을 선택합니다.</div></div>'
+            '  <div class="step"><div class="step-num">2</div>'
+            '    <div>회사 <b>RCM</b> 업로드 후 분석할 <b>통제번호</b> 선택.</div></div>'
+            '  <div class="step"><div class="step-num">3</div>'
+            '    <div><b>인터뷰 내용 · One Sample 증적 · 통제 로직 · LMD</b> 입력.</div></div>'
+            '  <div class="step"><div class="step-num">4</div>'
+            '    <div><b>🔧 ITAC 워크페이퍼 생성</b> 클릭 → 3-sheet 엑셀 다운로드.</div></div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        # ── Generate workpaper ──
+        # Build ControlMeta from RCM
+        meta = None
+        if itac_rcm_df is not None and "control_id" in itac_rcm_df.columns:
+            matches = itac_rcm_df[itac_rcm_df["control_id"].astype(str) == selected_control_id]
+            if not matches.empty:
+                meta = control_meta_from_rcm_row(matches.iloc[0].to_dict())
+        if meta is None:
+            from modules.itac_tester import ControlMeta
+            meta = ControlMeta(
+                control_id=selected_control_id or "(미입력)",
+                control_activity_ko="(RCM 미매칭 — 수기 입력 필요)",
+                control_type="—",
+                frequency="—",
+                automation="—",
+                process_ko="—",
+            )
+
+        evidence_summary = ""
+        if itac_evidence_file is not None:
+            evidence_summary = (
+                f"증적 이미지: {itac_evidence_file.name} "
+                f"({len(itac_evidence_file.getvalue())//1024} KB) — "
+                "Vision 추출 결과 첨부 필요."
+            )
+
+        wp = synthesize_itac_workpaper(
+            itac_type=itac_type_code,
+            control_meta=meta,
+            sample_id=itac_sample_id,
+            sample_date=itac_sample_date,
+            narrative=itac_narrative,
+            evidence_summary_ko=evidence_summary,
+            logic_text=itac_logic,
+            lmd_text=itac_lmd,
+            audit_period_start=itac_period_start,
+            audit_period_end=itac_period_end,
+        )
+
+        # ── Preview header ──
+        conclusion_class = (
+            "sev-High" if wp.overall_conclusion.startswith("Deficient") else
+            "sev-Low"  if wp.overall_conclusion == "Effective" else
+            "sev-Medium"
+        )
+        st.markdown(
+            f'<div class="itac-result-banner">'
+            f'  <div>'
+            f'    <span class="itac-banner-label">자동 생성 결과 · 종합 결론</span>'
+            f'    <div class="itac-banner-conclusion">'
+            f'      <span class="severity-pill {conclusion_class}">{html.escape(wp.overall_conclusion)}</span>'
+            f'    </div>'
+            f'  </div>'
+            f'  <div class="itac-banner-meta">'
+            f'    <b>{html.escape(meta.control_id)}</b> · '
+            f'    {html.escape(ITAC_LABEL_SHORT_KO.get(wp.itac_type, ""))} · '
+            f'    Sample {html.escape(wp.sample_id)} ({html.escape(wp.sample_date)})'
+            f'  </div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # ── Download button (top) ──
+        xlsx_bytes = export_itac_workpaper(wp)
+        fname = suggested_filename(wp)
+        st.download_button(
+            label=f"📥 ITAC 워크페이퍼 다운로드 (.xlsx · {len(xlsx_bytes)//1024} KB)",
+            data=xlsx_bytes,
+            file_name=fname,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            type="primary",
+        )
+
+        # ── Preview tabs ──
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📋 Cover · 메타",
+            "1️⃣ Sample Test",
+            "2️⃣ 로직 분석",
+            "3️⃣ LMD 검증",
+        ])
+
+        with tab1:
+            st.markdown(
+                f'<div class="itac-card">'
+                f'  <h4>통제 메타데이터</h4>'
+                f'  <table class="itac-meta-table">'
+                f'    <tr><th>Control ID</th><td>{html.escape(meta.control_id)}</td></tr>'
+                f'    <tr><th>ITAC 유형</th><td>{html.escape(ITAC_LABEL_KO.get(wp.itac_type, wp.itac_type))}</td></tr>'
+                f'    <tr><th>통제 활동</th><td>{html.escape(meta.control_activity_ko)}</td></tr>'
+                f'    <tr><th>프로세스 · 산업</th><td>{html.escape(meta.process_ko)} · {html.escape(meta.industry_ko)}</td></tr>'
+                f'    <tr><th>통제 유형 · 빈도 · 자동화</th><td>{html.escape(meta.control_type)} · {html.escape(meta.frequency)} · {html.escape(meta.automation)}</td></tr>'
+                f'    <tr><th>Sample ID · 일자</th><td>{html.escape(wp.sample_id)} · {html.escape(wp.sample_date)}</td></tr>'
+                f'    <tr><th>증적 요약</th><td>{html.escape(wp.evidence_summary_ko)}</td></tr>'
+                f'    <tr><th>감사인 메모</th><td>{html.escape(wp.auditor_note_ko)}</td></tr>'
+                f'    <tr><th>자동생성 시각</th><td>{html.escape(wp.generated_at)}</td></tr>'
+                f'  </table>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        with tab2:
+            st.caption(f"통제 재실행 절차 · {len(wp.test_steps)} 단계 자동 추천")
+            st.dataframe(
+                pd.DataFrame([{
+                    "Step":     f"Step {s.seq}",
+                    "절차":      s.description_ko,
+                    "기대 결과": s.expected_result_ko,
+                    "결론":      s.conclusion,
+                } for s in wp.test_steps]),
+                use_container_width=True, hide_index=True,
+            )
+
+        with tab3:
+            st.caption(f"통제 로직 분기 분해 · {len(wp.logic_branches)} branches")
+            st.dataframe(
+                pd.DataFrame([{
+                    "조건":      b.condition_ko,
+                    "액션":      b.action_ko,
+                    "Red Flag": b.red_flag_ko or "—",
+                } for b in wp.logic_branches]),
+                use_container_width=True, hide_index=True,
+            )
+
+        with tab4:
+            st.caption(
+                f"통제 객체 최종변경일 검증 · {len(wp.lmd_rows)} 객체 — "
+                f"감사기간 {itac_period_start} ~ {itac_period_end}"
+            )
+            st.dataframe(
+                pd.DataFrame([{
+                    "객체명":      r.object_name,
+                    "유형":        r.object_type,
+                    "최종변경일":  r.last_modified_date,
+                    "변경자":      r.last_modified_by,
+                    "변경 사유":   r.change_reason_ko,
+                    "기간내?":     r.in_audit_period,
+                    "재테스트?":   r.retest_required,
+                    "결론":        r.conclusion_ko,
+                } for r in wp.lmd_rows]),
+                use_container_width=True, hide_index=True,
+            )
+
+    st.stop()   # Don't render the Walkthrough dashboard below.
 
 if "mermaid" in st.session_state:
     findings = st.session_state["findings"]
