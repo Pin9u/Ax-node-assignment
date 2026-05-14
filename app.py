@@ -1421,6 +1421,78 @@ if "mermaid" in st.session_state:
         unsafe_allow_html=True,
     )
 
+    # ===== Compute KPIs + audit plan upfront (used by Partner Summary too) =====
+    nodes_for_kpi = parse_nodes(mermaid_raw) or []
+    kpis = coverage_kpis(
+        [n.to_dict() for n in nodes_for_kpi],
+        (mapping_result or {}).get("mappings", []),
+    )
+    _audit_plan = synthesize_audit_plan(
+        process_label_ko=scenario_label or "매출 인식",
+        mappings=(mapping_result or {}).get("mappings", []),
+        risks=risks or {},
+        missing_controls=st.session_state.get("missing_controls"),
+        plan=st.session_state.get("plan_dict") or None,
+        coverage_pct=kpis.get("coverage_pct", 0.0),
+        gap_count=kpis.get("gap_count", 0),
+        narrative_text=st.session_state.get("narrative_preview", ""),
+    )
+
+    # ===== 📊 Partner At-a-Glance summary (1-page exec card) =====
+    n_sig = sum(1 for r in _audit_plan.assertion_risks if r.risk_level == "Significant")
+    n_total_assertion = max(1, len(_audit_plan.assertion_risks))
+    _romm_chips: List[str] = []
+    for ax in _audit_plan.romm_axes:
+        lvl_cls = f"romm-mini-{ax.level.lower()}"
+        _romm_chips.append(
+            f'<span class="romm-mini {lvl_cls}" title="{html.escape(ax.rationale_ko)}">'
+            f'  <span class="romm-mini-name">{html.escape(ROMM_LABEL_KO.get(ax.axis, ax.axis))}</span>'
+            f'  <span class="romm-mini-level">{html.escape(ax.level[0])}</span>'
+            f'</span>'
+        )
+    _ass_chips: List[str] = []
+    for ar in _audit_plan.assertion_risks:
+        cls = "ass-sig" if ar.risk_level == "Significant" else "ass-norm"
+        _ass_chips.append(
+            f'<span class="ass-mini {cls}" '
+            f' title="{html.escape(ar.assertion)} · {html.escape(ar.risk_level)} · {html.escape(ar.nature_ko[:80])}">'
+            f'{html.escape(ar.assertion)}</span>'
+        )
+    _strategy_short = _audit_plan.overall_strategy_ko.split("—")[0].strip()
+    if not _strategy_short:
+        _strategy_short = _audit_plan.overall_strategy_ko[:100]
+    st.markdown(
+        f'<div class="partner-summary">'
+        f'  <div class="ps-header">'
+        f'    <span class="ps-label">📊 Partner At-a-Glance</span>'
+        f'    <span class="ps-tag">조서 1페이지 요약</span>'
+        f'  </div>'
+        f'  <div class="ps-grid">'
+        f'    <div class="ps-cell ps-cell-stats">'
+        f'      <div class="ps-stat"><span class="ps-num">{kpis["coverage_pct"]}%</span>'
+        f'        <span class="ps-stat-label">매핑률</span></div>'
+        f'      <div class="ps-stat"><span class="ps-num">{kpis["gap_count"]}</span>'
+        f'        <span class="ps-stat-label">통제 공백</span></div>'
+        f'      <div class="ps-stat"><span class="ps-num ps-num-sig">{n_sig}/{n_total_assertion}</span>'
+        f'        <span class="ps-stat-label">Significant Risk</span></div>'
+        f'    </div>'
+        f'    <div class="ps-cell ps-cell-romm">'
+        f'      <div class="ps-cell-title">5축 RoMM</div>'
+        f'      <div class="ps-romm-row">{"".join(_romm_chips)}</div>'
+        f'    </div>'
+        f'    <div class="ps-cell ps-cell-ass">'
+        f'      <div class="ps-cell-title">Assertion (E/O · C · A · CO · P&D)</div>'
+        f'      <div class="ps-ass-row">{"".join(_ass_chips)}</div>'
+        f'    </div>'
+        f'  </div>'
+        f'  <div class="ps-strategy">'
+        f'    <span class="ps-strategy-label">⚖ Audit Strategy</span>'
+        f'    {html.escape(_strategy_short)}'
+        f'  </div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
     # ===== Section TOC (sticky chips for jump-to-section) =====
     st.markdown(
         '<nav class="section-toc" aria-label="섹션 바로가기">'
@@ -1438,11 +1510,6 @@ if "mermaid" in st.session_state:
     )
 
     # ===== KPI tiles (coverage / gaps / confidence) =====
-    nodes_for_kpi = parse_nodes(mermaid_raw) or []
-    kpis = coverage_kpis(
-        [n.to_dict() for n in nodes_for_kpi],
-        (mapping_result or {}).get("mappings", []),
-    )
     cov_color = "ok" if kpis["coverage_pct"] >= 70 else (
         "warn" if kpis["coverage_pct"] >= 40 else "bad")
     gap_color = "bad" if kpis["gap_count"] >= 3 else (
