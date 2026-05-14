@@ -324,7 +324,6 @@ def _parse_lmd_to_rows(lmd_text: str, audit_period_start: str = "2025-01-01",
         if not obj_name:
             continue
 
-        in_period = "N"
         if lmd_date and lmd_date != "—":
             try:
                 d = datetime.strptime(lmd_date[:10], "%Y-%m-%d")
@@ -333,14 +332,21 @@ def _parse_lmd_to_rows(lmd_text: str, audit_period_start: str = "2025-01-01",
                 in_period = "Y" if start <= d <= end else "N"
             except Exception:
                 in_period = "?"
+        else:
+            in_period = "?"   # date missing — needs Vision/manual review
 
-        approval = ("정식 승인 워크플로우 흔적 추적 필요 (메이커-체커 / 이메일 / Jira)"
-                    if in_period == "Y" else
-                    "감사기간 외 변경 — 추가 절차 없음.")
-        retest = "Y" if in_period == "Y" else "N"
-        conclusion = ("⚠ 감사기간 내 변경 — retest 수행 후 통제 효과성 재평가 필요."
-                      if in_period == "Y" else
-                      "✓ 감사기간 외 변경 또는 변경 없음 — 통제 무단 변경 위험 낮음.")
+        if in_period == "Y":
+            approval = "정식 승인 워크플로우 흔적 추적 필요 (메이커-체커 / 이메일 / Jira)"
+            retest = "Y"
+            conclusion = "⚠ 감사기간 내 변경 — retest 수행 후 통제 효과성 재평가 필요."
+        elif in_period == "N":
+            approval = "감사기간 외 변경 — 추가 절차 없음."
+            retest = "N"
+            conclusion = "✓ 감사기간 외 변경 — 통제 무단 변경 위험 낮음."
+        else:  # "?"
+            approval = "변경일 미식별 — Vision 자동 추출 또는 수기 검토 후 결정."
+            retest = "?"
+            conclusion = "⏳ LMD 데이터 보강 필요 — 첨부 스크린샷 / 시스템 audit log 검토."
 
         rows.append(LMDRow(
             object_name=obj_name,

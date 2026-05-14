@@ -681,12 +681,20 @@ with st.sidebar:
         )
 
         st.markdown("### 8) LMD (최종변경일)")
+        st.caption("실무에선 보통 시스템 변경이력 화면 캡쳐(ABAP·SQL view 메타·Git log 등)를 첨부합니다.")
+        itac_lmd_image_files = st.file_uploader(
+            "LMD 스크린샷 (여러 장 OK)",
+            type=["png", "jpg", "jpeg", "webp"],
+            accept_multiple_files=True,
+            key=f"itac_lmd_imgs_{itac_type_code}_{selected_control_id}",
+        )
         itac_lmd = st.text_area(
-            "통제 객체 최종변경일 — `객체명 | 유형 | YYYY-MM-DD | 변경자 | 사유`",
-            height=120,
+            "수기 메모 (선택) — `객체명 | 유형 | YYYY-MM-DD | 변경자 | 사유`",
+            height=110,
             value=_preset.get("lmd", ""),
             placeholder=("VW_PAY_VALIDATE | SQL View | 2024-11-22 | dba | 정기 패치\n"
                          "SP_CHECK_PRODUCT | Stored Proc | 2025-08-15 | 김ㅁㅁ | 신상품 추가"),
+            help="이미지만 첨부해도 OK. 텍스트는 추가 메모용 — 두 소스 모두 워크페이퍼에 반영됩니다.",
             key=f"itac_lmd_{itac_type_code}_{selected_control_id}",
         )
 
@@ -1279,6 +1287,23 @@ if is_itac_tool:
                 "Vision 추출 결과 첨부 필요."
             )
 
+        # Build merged LMD text — append a note row per uploaded screenshot
+        # so the workpaper visibly references the attached evidence.
+        lmd_combined = (itac_lmd or "").strip()
+        if itac_lmd_image_files:
+            attach_lines: List[str] = []
+            for f in itac_lmd_image_files:
+                fname = getattr(f, "name", "lmd_screenshot")
+                size_kb = len(f.getvalue()) // 1024
+                attach_lines.append(
+                    f"[첨부 스크린샷] {fname} ({size_kb} KB) | 이미지 증적 | — "
+                    f"| (Vision 추출 대기) | LMD 화면 캡쳐 — 별도 검토 필요"
+                )
+            if lmd_combined:
+                lmd_combined = lmd_combined + "\n" + "\n".join(attach_lines)
+            else:
+                lmd_combined = "\n".join(attach_lines)
+
         wp = synthesize_itac_workpaper(
             itac_type=itac_type_code,
             control_meta=meta,
@@ -1287,7 +1312,7 @@ if is_itac_tool:
             narrative=itac_narrative,
             evidence_summary_ko=evidence_summary,
             logic_text=itac_logic,
-            lmd_text=itac_lmd,
+            lmd_text=lmd_combined,
             audit_period_start=itac_period_start,
             audit_period_end=itac_period_end,
         )
