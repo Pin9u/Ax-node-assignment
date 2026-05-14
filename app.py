@@ -689,10 +689,11 @@ with st.sidebar:
             key=f"itac_lmd_imgs_{itac_type_code}_{selected_control_id}",
         )
         itac_lmd = st.text_area(
-            "수기 메모 (선택) — `객체명 | 유형 | YYYY-MM-DD | 변경자 | 사유`",
+            "수기 메모 (선택)",
             height=110,
             value=_preset.get("lmd", ""),
-            placeholder=("VW_PAY_VALIDATE | SQL View | 2024-11-22 | dba | 정기 패치\n"
+            placeholder=("형식: 객체명 | 유형 | YYYY-MM-DD | 변경자 | 사유\n\n"
+                         "VW_PAY_VALIDATE | SQL View | 2024-11-22 | dba | 정기 패치\n"
                          "SP_CHECK_PRODUCT | Stored Proc | 2025-08-15 | 김ㅁㅁ | 신상품 추가"),
             help="이미지만 첨부해도 OK. 텍스트는 추가 메모용 — 두 소스 모두 워크페이퍼에 반영됩니다.",
             key=f"itac_lmd_{itac_type_code}_{selected_control_id}",

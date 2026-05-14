@@ -118,6 +118,17 @@ section[data-testid="stSidebar"] hr {
   border-color: #2A2A2A !important;
   margin: 1rem 0 !important;
 }
+/* Markdown inline-code (backticks) in sidebar — must stay dark-themed,
+   otherwise it renders as light grey blocks that look broken on the
+   black sidebar. */
+section[data-testid="stSidebar"] code,
+section[data-testid="stSidebar"] pre {
+  background: #2A2A2A !important;
+  color: #DDDDDD !important;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.78rem;
+}
 
 /* Sidebar inputs */
 section[data-testid="stSidebar"] .stTextInput input,
