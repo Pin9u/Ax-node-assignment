@@ -1464,9 +1464,12 @@ if "mermaid" in st.session_state:
         narrative_text=st.session_state.get("narrative_preview", ""),
     )
 
-    # ===== 📊 Partner At-a-Glance summary (1-page exec card) =====
+    # ===== 📊 Summary card (1-page exec at-a-glance) =====
     n_sig = sum(1 for r in _audit_plan.assertion_risks if r.risk_level == "Significant")
     n_total_assertion = max(1, len(_audit_plan.assertion_risks))
+    _conf = kpis.get("confidence") or {"High": 0, "Medium": 0, "Low": 0}
+    _conf_total = max(1, sum(_conf.values()))
+    _conf_high_pct = round(100 * _conf.get("High", 0) / _conf_total)
     _romm_chips: List[str] = []
     for ax in _audit_plan.romm_axes:
         lvl_cls = f"romm-mini-{ax.level.lower()}"
@@ -1496,11 +1499,13 @@ if "mermaid" in st.session_state:
         f'  <div class="ps-grid">'
         f'    <div class="ps-cell ps-cell-stats">'
         f'      <div class="ps-stat"><span class="ps-num">{kpis["coverage_pct"]}%</span>'
-        f'        <span class="ps-stat-label">매핑률</span></div>'
+        f'        <span class="ps-stat-label">통제 매핑률</span></div>'
         f'      <div class="ps-stat"><span class="ps-num">{kpis["gap_count"]}</span>'
-        f'        <span class="ps-stat-label">통제 공백</span></div>'
+        f'        <span class="ps-stat-label">통제 공백 (건)</span></div>'
         f'      <div class="ps-stat"><span class="ps-num ps-num-sig">{n_sig}/{n_total_assertion}</span>'
         f'        <span class="ps-stat-label">Significant Risk</span></div>'
+        f'      <div class="ps-stat"><span class="ps-num">{_conf_high_pct}%</span>'
+        f'        <span class="ps-stat-label">매칭 정확도 (高)</span></div>'
         f'    </div>'
         f'    <div class="ps-cell ps-cell-romm">'
         f'      <div class="ps-cell-title">5축 RoMM</div>'
@@ -1535,41 +1540,10 @@ if "mermaid" in st.session_state:
         unsafe_allow_html=True,
     )
 
-    # ===== KPI tiles (coverage / gaps / confidence) =====
-    cov_color = "ok" if kpis["coverage_pct"] >= 70 else (
-        "warn" if kpis["coverage_pct"] >= 40 else "bad")
-    gap_color = "bad" if kpis["gap_count"] >= 3 else (
-        "warn" if kpis["gap_count"] >= 1 else "ok")
-    conf = kpis["confidence"]
-    n_total_conf = max(1, sum(conf.values()))
-    high_pct = round(100 * conf["High"] / n_total_conf)
-    conf_color = "ok" if high_pct >= 60 else ("warn" if high_pct >= 30 else "bad")
-    relevant = kpis.get("relevant_nodes", kpis.get("mapped_nodes", 0))
-    effective = kpis.get("effective_nodes", kpis.get("mapped_nodes", 0))
-    st.markdown(
-        f'<div class="kpi-row">'
-        f'  <div class="kpi-tile kpi-{cov_color}">'
-        f'    <div class="kpi-label">📐 통제 매핑률</div>'
-        f'    <div class="kpi-value">{kpis["coverage_pct"]}<span class="kpi-unit">%</span></div>'
-        f'    <div class="kpi-meta">통제 대상 {relevant}개 중 {effective}개 작동</div>'
-        f'  </div>'
-        f'  <div class="kpi-tile kpi-{gap_color}">'
-        f'    <div class="kpi-label">⚠ 통제 공백</div>'
-        f'    <div class="kpi-value">{kpis["gap_count"]}<span class="kpi-unit">건</span></div>'
-        f'    <div class="kpi-meta">신규 설계 권고</div>'
-        f'  </div>'
-        f'  <div class="kpi-tile kpi-{conf_color}">'
-        f'    <div class="kpi-label">🎯 매칭 정확도</div>'
-        f'    <div class="kpi-value">{high_pct}<span class="kpi-unit">% 高</span></div>'
-        f'    <div class="kpi-meta">'
-        f'      高 {conf["High"]} · 中 {conf["Medium"]} · 低 {conf["Low"]}'
-        f'    </div>'
-        f'  </div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
     # ===== Narrative (top, collapsed) — quick-reference, doesn't push content =====
+    # (KPI tiles removed — the Summary card above already shows
+    #  매핑률 · 공백 · Significant + 매칭 정확도, so the 3-tile block
+    #  was duplicated information.)
     _was_enriched = st.session_state.get("narrative_was_enriched", False)
     _expander_label = ("🪄 AI가 보강한 내러티브 보기 (원본 + [추정] 표기)"
                        if _was_enriched else "📝 분석에 사용된 내러티브 보기")
